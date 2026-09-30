@@ -18,7 +18,9 @@ DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{(DATA_DIR / 'app.db').as_p
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 
-HOST = os.getenv("HOST", "127.0.0.1")
+# บน Railway/คลาวด์ต้องรับการเชื่อมต่อจากภายนอก (0.0.0.0) และใช้ PORT ที่แพลตฟอร์มกำหนด
+ON_CLOUD = bool(os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_PROJECT_ID"))
+HOST = os.getenv("HOST") or ("0.0.0.0" if ON_CLOUD else "127.0.0.1")
 PORT = int(os.getenv("PORT", "8000"))
 
 # เวลาที่แสดงบนหน้าเว็บ (ค่าเริ่มต้น: เวลาประเทศไทย UTC+7)

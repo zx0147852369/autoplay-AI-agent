@@ -45,7 +45,7 @@ copy .env.example .env          # macOS/Linux: cp .env.example .env
 รันโปรแกรม:
 
 ```bash
-python run.py
+python main.py
 ```
 
 แล้วเปิด http://127.0.0.1:8000
@@ -57,6 +57,15 @@ python run.py
 3. ไปที่ **แชทลูกค้า** → กด "ดึงรายชื่อแชทจาก Telegram" → เปิด "ติดตาม" เฉพาะกลุ่มลูกค้า
 4. ไปที่ **ตั้งค่า** → ใส่ข้อมูลธุรกิจ ฐานความรู้ รายชื่อเว็บไซต์ของเรา และสไตล์การตอบ → เพิ่มบัญชีให้โปรแกรมเมอร์
 5. เมื่อลูกค้าส่งข้อความ ร่างคำตอบจะขึ้นในหน้า **รออนุมัติ** และปัญหาจะถูกบันทึกในหน้า **Tickets**
+
+## Deploy บน Railway
+
+โปรเจกต์มี `railway.json` กำหนดคำสั่งเริ่ม `python main.py` ไว้แล้ว บน Railway ระบบจะรับการเชื่อมต่อที่ `0.0.0.0` และใช้ `PORT` ที่ Railway กำหนดให้อัตโนมัติ
+
+1. **Variables**: ใส่ `ANTHROPIC_API_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `SECRET_KEY` (สุ่มยาวๆ และห้ามเปลี่ยนภายหลัง ไม่งั้น session Telegram ที่เข้ารหัสไว้จะใช้ไม่ได้) และ `DATA_DIR=/data`
+2. **Volume**: สร้าง Volume แล้ว mount ที่ `/data` เพื่อเก็บฐานข้อมูล รูปภาพ และ session Telegram (ถ้าไม่มี Volume ข้อมูลจะหายทุกครั้งที่ deploy ใหม่)
+3. **Networking**: กด Generate Domain เพื่อเปิดหน้าหลังบ้าน
+4. ใช้ **1 replica** เท่านั้น (บัญชี Telegram หนึ่งบัญชีควรเชื่อมต่อจากที่เดียว)
 
 ## ความปลอดภัย
 
@@ -82,7 +91,8 @@ app/
   security.py          เข้ารหัส session, hash รหัสผ่านผู้ใช้หลังบ้าน
   templates/           หน้าเว็บ (Jinja2)
   static/style.css
-run.py
+main.py              จุดเริ่มโปรแกรม
+railway.json
 ```
 
 ## ปรับแต่ง
