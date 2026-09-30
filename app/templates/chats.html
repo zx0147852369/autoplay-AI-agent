@@ -1,39 +1,56 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}แชทลูกค้า{% endblock %}
 {% block content %}
-<div class="head-row">
-  <h1>แชทลูกค้า</h1>
+<div class="page-head fade-in">
+  <div>
+    <div class="eyebrow">{{ icon('chat', 14) }} Conversations</div>
+    <h1>แชทลูกค้า</h1>
+    <p class="sub">เปิด "ติดตาม" เฉพาะกลุ่มลูกค้า AI จะอ่านเฉพาะแชทที่ติดตาม ร่างคำตอบ และเปิด ticket เมื่อพบปัญหา</p>
+  </div>
   {% if user.role == 'admin' %}
-  <form method="post" action="/chats/sync"><button {{ '' if connected else 'disabled' }}>ดึงรายชื่อแชทจาก Telegram</button></form>
+  <form method="post" action="/chats/sync"><button class="primary" {{ '' if connected else 'disabled' }}>{{ icon('refresh', 16) }} ดึงรายชื่อแชทจาก Telegram</button></form>
   {% endif %}
 </div>
-<p class="muted">เปิด "ติดตาม" เฉพาะกลุ่มลูกค้า AI จะอ่านเฉพาะแชทที่ติดตาม ร่างคำตอบ และเปิด ticket เมื่อพบปัญหา</p>
 
 {% if chats %}
-<table class="card">
-  <thead><tr><th>แชท</th><th>ประเภท</th><th class="num">ข้อความที่บันทึก</th><th>ติดตาม</th><th></th></tr></thead>
-  <tbody>
-  {% for c in chats %}
-    <tr class="{{ '' if c.monitored else 'dim' }}">
-      <td><a href="/chats/{{ c.id }}">{{ c.title }}</a>
-        {% if ai_errors.get(c.id) %}<div class="small error-text">AI: {{ ai_errors[c.id] }}</div>{% endif %}</td>
-      <td>{{ {'group': 'กลุ่ม', 'channel': 'แชนแนล', 'user': 'แชทส่วนตัว'}[c.kind] }}</td>
-      <td class="num">{{ counts.get(c.id, 0) }}</td>
-      <td>
-        {% if user.role == 'admin' %}
-        <form method="post" action="/chats/{{ c.id }}/toggle">
-          <button class="toggle {{ 'on' if c.monitored }}">{{ 'ติดตามอยู่' if c.monitored else 'ไม่ได้ติดตาม' }}</button>
-        </form>
-        {% else %}{{ 'ติดตามอยู่' if c.monitored else '-' }}{% endif %}
-      </td>
-      <td>{% if c.monitored %}
-        <form method="post" action="/chats/{{ c.id }}/analyze"><button class="small">วิเคราะห์ตอนนี้</button></form>
-      {% endif %}</td>
-    </tr>
-  {% endfor %}
-  </tbody>
-</table>
+<div class="card flush fade-in">
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>แชท</th><th>ประเภท</th><th class="num">ข้อความ</th><th>การติดตาม</th><th></th></tr></thead>
+    <tbody>
+    {% for c in chats %}
+      <tr class="{{ '' if c.monitored else 'dim' }}">
+        <td>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span class="avatar sm chat">{{ c.title[:1] | upper }}</span>
+            <div><a class="title-link" href="/chats/{{ c.id }}">{{ c.title }}</a>
+              {% if ai_errors.get(c.id) %}<div class="small error-text">{{ icon('alert', 12) }} {{ ai_errors[c.id] }}</div>{% endif %}</div>
+          </div>
+        </td>
+        <td class="small">{{ {'group': 'กลุ่ม', 'channel': 'แชนแนล', 'user': 'แชทส่วนตัว'}[c.kind] }}</td>
+        <td class="num">{{ counts.get(c.id, 0) }}</td>
+        <td>
+          {% if user.role == 'admin' %}
+          <form method="post" action="/chats/{{ c.id }}/toggle">
+            <button class="switch {{ 'on' if c.monitored }}" title="สลับการติดตาม"><span class="track"></span>{{ 'ติดตามอยู่' if c.monitored else 'ไม่ได้ติดตาม' }}</button>
+          </form>
+          {% else %}<span class="pill {{ 'st-resolved' if c.monitored else 'st-closed' }}">{{ 'ติดตามอยู่' if c.monitored else 'ไม่ได้ติดตาม' }}</span>{% endif %}
+        </td>
+        <td class="num">{% if c.monitored %}
+          <form method="post" action="/chats/{{ c.id }}/analyze"><button class="sm">{{ icon('sparkles', 14) }} วิเคราะห์ตอนนี้</button></form>
+        {% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
 {% else %}
-  <div class="card muted">ยังไม่มีรายชื่อแชท {{ 'กดปุ่ม "ดึงรายชื่อแชทจาก Telegram"' if connected else 'เชื่อมต่อบัญชี Telegram ก่อน' }}</div>
+  <div class="card empty fade-in">
+    <div class="empty-ic">{{ icon('chat', 26) }}</div>
+    <strong>ยังไม่มีรายชื่อแชท</strong>
+    {% if connected %}กดปุ่ม "ดึงรายชื่อแชทจาก Telegram" ด้านบน{% else %}<a href="/telegram">เชื่อมต่อบัญชี Telegram</a> ก่อน แล้วดึงรายชื่อแชท{% endif %}
+  </div>
 {% endif %}
 {% endblock %}

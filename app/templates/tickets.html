@@ -1,15 +1,20 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}Tickets{% endblock %}
 {% block content %}
-<div class="head-row">
-  <h1>Tickets ปัญหาลูกค้า</h1>
-  <form method="get" class="row">
-    <select name="status" onchange="this.form.submit()">
+<div class="page-head fade-in">
+  <div>
+    <div class="eyebrow">{{ icon('ticket', 14) }} Issue tracker</div>
+    <h1>Tickets ปัญหาลูกค้า</h1>
+    <p class="sub">AI สรุปปัญหาจากแชทลูกค้าพร้อมรูปภาพและลิงก์เว็บไซต์ ให้โปรแกรมเมอร์รับงานและอัปเดตสถานะ</p>
+  </div>
+  <form method="get" class="filters">
+    <select name="status" onchange="this.form.submit()" aria-label="สถานะ">
       <option value="active" {{ 'selected' if status == 'active' }}>ยังไม่ปิด</option>
       {% for k, v in TICKET_STATUSES.items() %}<option value="{{ k }}" {{ 'selected' if status == k }}>{{ v }}</option>{% endfor %}
       <option value="all" {{ 'selected' if status == 'all' }}>ทั้งหมด</option>
     </select>
-    <select name="category" onchange="this.form.submit()">
+    <select name="category" onchange="this.form.submit()" aria-label="ประเภท">
       <option value="">ทุกประเภท</option>
       {% for k, v in CATEGORIES.items() if k != 'none' %}<option value="{{ k }}" {{ 'selected' if category == k }}>{{ v }}</option>{% endfor %}
     </select>
@@ -17,26 +22,30 @@
 </div>
 
 {% if tickets %}
-<table class="card">
-  <thead><tr><th>#</th><th>ปัญหา</th><th>ประเภท</th><th>ลูกค้า / แชท</th><th>ความรุนแรง</th><th>สถานะ</th><th>ผู้รับผิดชอบ</th><th>เวลา</th></tr></thead>
-  <tbody>
-  {% for t in tickets %}
-    <tr>
-      <td><a href="/tickets/{{ t.id }}">#{{ t.id }}</a></td>
-      <td><a href="/tickets/{{ t.id }}">{{ t.title }}</a>
-        {% set sc = t.site_check | fromjson %}
-        {% if sc %}<div class="small {{ 'ok-text' if sc.ok else 'error-text' }}">เว็บ: {{ 'เข้าได้' if sc.ok else 'เข้าไม่ได้' }}</div>{% endif %}</td>
-      <td>{{ CATEGORIES.get(t.category, t.category) }}</td>
-      <td>{{ t.customer_name or '-' }}<div class="muted small">{{ chat_titles.get(t.chat_id, '') }}</div></td>
-      <td><span class="pill sev-{{ t.severity }}">{{ SEVERITY_LABELS[t.severity] }}</span></td>
-      <td><span class="pill st-{{ t.status }}">{{ TICKET_STATUSES[t.status] }}</span></td>
-      <td>{{ users.get(t.assignee_id, '-') }}</td>
-      <td class="small">{{ t.created_at | localtime }}</td>
-    </tr>
-  {% endfor %}
-  </tbody>
-</table>
+<div class="card flush fade-in">
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>#</th><th>ปัญหา</th><th>ประเภท</th><th>ลูกค้า</th><th>ความรุนแรง</th><th>สถานะ</th><th>ผู้รับผิดชอบ</th><th>เวลา</th></tr></thead>
+    <tbody>
+    {% for t in tickets %}
+      <tr onclick="location.href='/tickets/{{ t.id }}'" style="cursor:pointer">
+        <td class="id">#{{ t.id }}</td>
+        <td><a class="title-link" href="/tickets/{{ t.id }}">{{ t.title }}</a>
+          {% set sc = t.site_check | fromjson %}
+          {% if sc %}<div class="small {{ 'ok-text' if sc.ok else 'error-text' }}">{{ icon('globe', 12) }} เว็บ{{ 'เข้าได้' if sc.ok else 'เข้าไม่ได้' }}</div>{% endif %}</td>
+        <td class="small">{{ CATEGORIES.get(t.category, t.category) }}</td>
+        <td>{{ t.customer_name or '-' }}<div class="muted small">{{ chat_titles.get(t.chat_id, '') }}</div></td>
+        <td><span class="pill sev-{{ t.severity }}">{{ SEVERITY_LABELS[t.severity] }}</span></td>
+        <td><span class="pill st-{{ t.status }}">{{ TICKET_STATUSES[t.status] }}</span></td>
+        <td class="small">{{ users.get(t.assignee_id, '-') }}</td>
+        <td class="small muted">{{ t.created_at | localtime }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
 {% else %}
-  <div class="card muted">ไม่มี ticket</div>
+  <div class="card empty fade-in"><div class="empty-ic">{{ icon('ticket', 26) }}</div><strong>ไม่มี ticket</strong>ไม่พบ ticket ตามตัวกรองนี้</div>
 {% endif %}
 {% endblock %}

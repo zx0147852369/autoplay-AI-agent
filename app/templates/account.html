@@ -1,11 +1,20 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}บัญชีของฉัน{% endblock %}
 {% block content %}
-<h1>บัญชีของฉัน</h1>
-<form method="post" action="/account/password" class="card stack narrow-form">
-  <h2>เปลี่ยนรหัสผ่าน</h2>
-  <label>รหัสผ่านเดิม <input name="current" type="password" required autocomplete="current-password"></label>
-  <label>รหัสผ่านใหม่ (8 ตัวขึ้นไป) <input name="new" type="password" minlength="8" required autocomplete="new-password"></label>
-  <button class="primary">บันทึก</button>
+<div class="page-head fade-in">
+  <div style="display:flex;align-items:center;gap:16px">
+    <span class="avatar" style="width:56px;height:56px;border-radius:18px;font-size:1.3rem">{{ user.username[:1] | upper }}</span>
+    <div><h1>{{ user.username }}</h1><p class="sub" style="margin:0">{{ ROLES[user.role] }}</p></div>
+  </div>
+</div>
+<form method="post" action="/account/password" class="card stack fade-in" style="max-width:480px">
+  <div class="card-head"><h2>{{ icon('lock') }} เปลี่ยนรหัสผ่าน</h2></div>
+  {% if user.username == ENV_ADMIN %}
+    <div class="callout">{{ icon('alert') }}<span>บัญชีนี้ใช้รหัสผ่านจาก <code>ADMIN_PASSWORD</code> บนเซิร์ฟเวอร์ ถ้าเปลี่ยนที่นี่ รหัสจะกลับเป็นค่าเดิมเมื่อรีสตาร์ท ให้เปลี่ยนที่ Variables แทน</span></div>
+  {% endif %}
+  <label class="field">รหัสผ่านเดิม <input name="current" type="password" required autocomplete="current-password"></label>
+  <label class="field">รหัสผ่านใหม่ <input name="new" type="password" minlength="8" required autocomplete="new-password" placeholder="8 ตัวอักษรขึ้นไป"></label>
+  <button class="primary">{{ icon('check', 16) }} บันทึก</button>
 </form>
 {% endblock %}

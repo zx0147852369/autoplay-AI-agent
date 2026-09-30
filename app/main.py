@@ -49,15 +49,20 @@ REPLY_STATUSES = {"pending": "รออนุมัติ", "sent": "ส่ง�
 
 
 def ensure_admin() -> None:
+    """ADMIN_USERNAME / ADMIN_PASSWORD ใน env คือบัญชีผู้ดูแลหลัก: สร้างถ้ายังไม่มี และรีเซ็ตรหัสให้ตรงกับ env
+    ทุกครั้งที่เปิดโปรแกรม (ใช้กู้บัญชีได้ด้วยการเปลี่ยน ADMIN_PASSWORD แล้วรีสตาร์ท)"""
+    if not ADMIN_PASSWORD:
+        log.warning("ยังไม่ได้ตั้งค่า ADMIN_PASSWORD: ตั้งค่าใน .env / Variables แล้วรีสตาร์ท")
+        return
     with SessionLocal() as db:
-        if db.scalar(select(func.count(User.id))):
-            return
-        if not ADMIN_PASSWORD:
-            log.warning("ยังไม่มีผู้ใช้ในระบบ: ตั้งค่า ADMIN_PASSWORD ใน .env แล้วรีสตาร์ท")
-            return
-        db.add(User(username=ADMIN_USERNAME, password_hash=hash_password(ADMIN_PASSWORD), role="admin"))
+        user = db.scalar(select(User).where(User.username == ADMIN_USERNAME))
+        if user is None:
+            db.add(User(username=ADMIN_USERNAME, password_hash=hash_password(ADMIN_PASSWORD), role="admin"))
+            log.info("สร้างผู้ใช้ผู้ดูแลระบบ '%s' แล้ว", ADMIN_USERNAME)
+        elif not verify_password(ADMIN_PASSWORD, user.password_hash) or user.role != "admin":
+            user.password_hash, user.role = hash_password(ADMIN_PASSWORD), "admin"
+            log.info("อัปเดตรหัสผ่านผู้ดูแลระบบ '%s' ตาม ADMIN_PASSWORD แล้ว", ADMIN_USERNAME)
         db.commit()
-        log.info("สร้างผู้ใช้ผู้ดูแลระบบ '%s' แล้ว", ADMIN_USERNAME)
 
 
 @asynccontextmanager
@@ -87,7 +92,7 @@ templates.env.filters["localtime"] = _localtime
 templates.env.filters["fromjson"] = lambda s: json.loads(s) if s else None
 templates.env.globals.update(
     CATEGORIES=ai_service.CATEGORIES, TICKET_STATUSES=TICKET_STATUSES, SEVERITY_LABELS=SEVERITY_LABELS,
-    REPLY_STATUSES=REPLY_STATUSES, ROLES=ROLES,
+    REPLY_STATUSES=REPLY_STATUSES, ROLES=ROLES, ENV_ADMIN=ADMIN_USERNAME,
 )
 
 

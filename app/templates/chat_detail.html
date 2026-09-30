@@ -1,9 +1,16 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}{{ chat.title }}{% endblock %}
 {% block content %}
-<p><a href="/chats">← แชทลูกค้า</a></p>
-<h1>{{ chat.title }}</h1>
-<div class="card chatlog">
+<a class="back-link" href="/chats">{{ icon('arrow-left', 16) }} กลับไปหน้าแชทลูกค้า</a>
+<div class="page-head fade-in">
+  <div style="display:flex;align-items:center;gap:14px">
+    <span class="avatar chat" style="width:48px;height:48px;border-radius:15px;font-size:1.1rem">{{ chat.title[:1] | upper }}</span>
+    <div><h1>{{ chat.title }}</h1>
+      <p class="sub" style="margin:0">{{ messages | length }} ข้อความล่าสุด · {{ 'ติดตามอยู่' if chat.monitored else 'ไม่ได้ติดตาม' }}</p></div>
+  </div>
+</div>
+<div class="card chatlog full fade-in">
   {% for m in messages %}
     <div class="msg {{ 'out' if m.is_outgoing }}">
       <div class="meta">#{{ m.tg_message_id }} · {{ '[ทีมงาน]' if m.is_outgoing else m.sender_name }} · {{ m.date | localtime }}
@@ -12,7 +19,7 @@
       {% if m.media_path %}<a href="/media/{{ m.media_path }}" target="_blank"><img src="/media/{{ m.media_path }}" alt="รูปจากลูกค้า" class="thumb"></a>{% endif %}
     </div>
   {% else %}
-    <p class="muted">ยังไม่มีข้อความ (ระบบบันทึกเฉพาะข้อความใหม่หลังจากเริ่มติดตาม)</p>
+    <div class="empty"><div class="empty-ic">{{ icon('chat', 26) }}</div><strong>ยังไม่มีข้อความ</strong>ระบบบันทึกเฉพาะข้อความใหม่หลังจากเริ่มติดตาม</div>
   {% endfor %}
 </div>
 {% endblock %}

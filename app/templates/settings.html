@@ -1,57 +1,84 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}ตั้งค่า{% endblock %}
 {% block content %}
-<h1>ตั้งค่าระบบ</h1>
-
-<form method="post" action="/settings" class="card stack">
-  <h2>AI</h2>
-  <div class="row">
-    <label>โมเดล
-      <select name="ai_model">
-        {% for m in ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-4-5'] %}
-          <option value="{{ m }}" {{ 'selected' if settings.ai_model == m }}>{{ m }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    <label>ระดับการคิด (effort)
-      <select name="ai_effort">
-        {% for e in ['low', 'medium', 'high'] %}<option value="{{ e }}" {{ 'selected' if settings.ai_effort == e }}>{{ e }}</option>{% endfor %}
-      </select>
-    </label>
-    <label>รอลูกค้าพิมพ์ครบ (วินาที) <input name="debounce_seconds" type="number" min="0" max="600" value="{{ settings.debounce_seconds }}"></label>
-    <label>จำนวนข้อความย้อนหลังที่ให้ AI อ่าน <input name="context_messages" type="number" min="5" max="100" value="{{ settings.context_messages }}"></label>
+<div class="page-head fade-in">
+  <div>
+    <div class="eyebrow">{{ icon('sliders', 14) }} Settings</div>
+    <h1>ตั้งค่าระบบ</h1>
+    <p class="sub">กำหนดการทำงานของ AI ข้อมูลธุรกิจที่ใช้ตอบลูกค้า และผู้ใช้หลังบ้าน</p>
   </div>
-  <div class="checks">
-    <label><input type="checkbox" name="auto_draft" {{ 'checked' if settings.auto_draft == '1' }}> ให้ AI ร่างข้อความตอบกลับ (รออนุมัติก่อนส่งเสมอ)</label>
-    <label><input type="checkbox" name="auto_ticket" {{ 'checked' if settings.auto_ticket == '1' }}> สร้าง ticket อัตโนมัติเมื่อลูกค้าแจ้งปัญหา</label>
-    <label><input type="checkbox" name="site_check" {{ 'checked' if settings.site_check == '1' }}> ตรวจสอบเว็บไซต์อัตโนมัติเมื่อ ticket มีลิงก์</label>
-  </div>
+</div>
 
-  <label>ข้อมูลธุรกิจ (AI ใช้ทำความเข้าใจบริบท)
-    <textarea name="business_context" rows="4">{{ settings.business_context }}</textarea></label>
-  <label>ฐานความรู้ / วิธีตอบคำถามที่พบบ่อย / รายชื่อเว็บไซต์ของเรา
-    <textarea name="knowledge_base" rows="8">{{ settings.knowledge_base }}</textarea></label>
-  <label>สไตล์การตอบ
-    <input name="reply_style" value="{{ settings.reply_style }}"></label>
-  <button class="primary">บันทึกการตั้งค่า</button>
+<form method="post" action="/settings" class="grid-2 wide-left">
+  <section class="card fade-in">
+    <div class="card-head"><h2>{{ icon('bot') }} ความรู้ของ AI</h2></div>
+    <div class="stack">
+      <label class="field">ข้อมูลธุรกิจ <span class="hint">AI ใช้ทำความเข้าใจบริบท เช่น ธุรกิจของเรา บริการ กลุ่มลูกค้า</span>
+        <textarea name="business_context" rows="4">{{ settings.business_context }}</textarea></label>
+      <label class="field">ฐานความรู้ / วิธีตอบคำถามที่พบบ่อย <span class="hint">รวมถึงรายชื่อเว็บไซต์ของเรา ขั้นตอนแก้ปัญหาเบื้องต้น</span>
+        <textarea name="knowledge_base" rows="9">{{ settings.knowledge_base }}</textarea></label>
+      <label class="field">สไตล์การตอบ
+        <input name="reply_style" value="{{ settings.reply_style }}"></label>
+    </div>
+  </section>
+
+  <div>
+    <section class="card fade-in">
+      <div class="card-head"><h2>{{ icon('sparkles') }} การทำงานอัตโนมัติ</h2></div>
+      <div class="stack">
+        <label class="switch-row"><input type="checkbox" class="switch-input" name="auto_draft" {{ 'checked' if settings.auto_draft == '1' }}>
+          <span>ให้ AI ร่างข้อความตอบกลับ<span class="hint">รออนุมัติก่อนส่งเสมอ</span></span></label>
+        <label class="switch-row"><input type="checkbox" class="switch-input" name="auto_ticket" {{ 'checked' if settings.auto_ticket == '1' }}>
+          <span>สร้าง ticket อัตโนมัติ<span class="hint">เมื่อลูกค้าแจ้งปัญหา</span></span></label>
+        <label class="switch-row"><input type="checkbox" class="switch-input" name="site_check" {{ 'checked' if settings.site_check == '1' }}>
+          <span>ตรวจสอบเว็บไซต์อัตโนมัติ<span class="hint">เมื่อ ticket มีลิงก์เว็บ</span></span></label>
+      </div>
+    </section>
+    <section class="card fade-in">
+      <div class="card-head"><h2>{{ icon('sliders') }} โมเดลและจังหวะเวลา</h2></div>
+      <div class="stack">
+        <label class="field">โมเดล
+          <select name="ai_model">
+            {% for m in ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-4-5'] %}
+              <option value="{{ m }}" {{ 'selected' if settings.ai_model == m }}>{{ m }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="field">ระดับการคิด (effort)
+          <select name="ai_effort">
+            {% for e, l in [('low', 'low · เร็ว ประหยัด'), ('medium', 'medium · สมดุล'), ('high', 'high · ละเอียด')] %}<option value="{{ e }}" {{ 'selected' if settings.ai_effort == e }}>{{ l }}</option>{% endfor %}
+          </select>
+        </label>
+        <div class="row">
+          <label class="field">รอลูกค้าพิมพ์ครบ (วินาที) <input name="debounce_seconds" type="number" min="0" max="600" value="{{ settings.debounce_seconds }}"></label>
+          <label class="field">ข้อความย้อนหลังที่ AI อ่าน <input name="context_messages" type="number" min="5" max="100" value="{{ settings.context_messages }}"></label>
+        </div>
+        <button class="primary block">{{ icon('check', 16) }} บันทึกการตั้งค่า</button>
+      </div>
+    </section>
+  </div>
 </form>
 
-<section class="card">
-  <h2>ผู้ใช้หลังบ้าน</h2>
-  <table>
-    <thead><tr><th>ชื่อผู้ใช้</th><th>สิทธิ์</th><th>สร้างเมื่อ</th><th></th></tr></thead>
+<section class="card fade-in">
+  <div class="card-head"><h2>{{ icon('users') }} ผู้ใช้หลังบ้าน</h2></div>
+  <div class="list">
     {% for u in users %}
-      <tr><td>{{ u.username }}</td><td>{{ ROLES[u.role] }}</td><td class="small">{{ u.created_at | localtime }}</td>
-        <td>{% if u.id != user.id %}<form method="post" action="/users/{{ u.id }}/delete" onsubmit="return confirm('ลบผู้ใช้ {{ u.username }}?')"><button class="small danger">ลบ</button></form>{% endif %}</td></tr>
+      <div class="list-item">
+        <span class="avatar sm">{{ u.username[:1] | upper }}</span>
+        <span class="li-main"><span class="li-title">{{ u.username }}{% if u.id == user.id %} <span class="muted small">(คุณ)</span>{% endif %}</span>
+          <span class="li-sub">{{ ROLES[u.role] }} · สร้างเมื่อ {{ u.created_at | localtime }}</span></span>
+        {% if u.id != user.id %}<form method="post" action="/users/{{ u.id }}/delete" onsubmit="return confirm('ลบผู้ใช้ {{ u.username }}?')"><button class="sm danger">{{ icon('trash', 14) }} ลบ</button></form>{% endif %}
+      </div>
     {% endfor %}
-  </table>
+  </div>
   <h3>เพิ่มผู้ใช้</h3>
   <form method="post" action="/users" class="row">
-    <input name="username" placeholder="ชื่อผู้ใช้" required>
-    <input name="password" type="password" placeholder="รหัสผ่าน (8 ตัวขึ้นไป)" minlength="8" required autocomplete="new-password">
-    <select name="role">{% for k, v in ROLES.items() %}<option value="{{ k }}" {{ 'selected' if k == 'programmer' }}>{{ v }}</option>{% endfor %}</select>
-    <button>เพิ่ม</button>
+    <label class="field">ชื่อผู้ใช้ <input name="username" required></label>
+    <label class="field">รหัสผ่าน <input name="password" type="password" placeholder="8 ตัวอักษรขึ้นไป" minlength="8" required autocomplete="new-password"></label>
+    <label class="field">สิทธิ์ <select name="role">{% for k, v in ROLES.items() %}<option value="{{ k }}" {{ 'selected' if k == 'programmer' }}>{{ v }}</option>{% endfor %}</select></label>
+    <button>{{ icon('plus', 16) }} เพิ่มผู้ใช้</button>
   </form>
-  <p class="muted small">ผู้ดูแลระบบ = ทุกอย่าง · แอดมินตอบแชท = อนุมัติข้อความ + ดู ticket · โปรแกรมเมอร์ = ดูและแก้ไข ticket เท่านั้น</p>
+  <p class="hint" style="margin:12px 0 0">ผู้ดูแลระบบ = ทุกอย่าง · แอดมินตอบแชท = อนุมัติข้อความ + ดู ticket · โปรแกรมเมอร์ = ดูและแก้ไข ticket เท่านั้น</p>
 </section>
 {% endblock %}
