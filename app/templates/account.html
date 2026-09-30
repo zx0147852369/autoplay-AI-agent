@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}บัญชีของฉัน{% endblock %}
+{% block content %}
+<h1>บัญชีของฉัน</h1>
+<form method="post" action="/account/password" class="card stack narrow-form">
+  <h2>เปลี่ยนรหัสผ่าน</h2>
+  <label>รหัสผ่านเดิม <input name="current" type="password" required autocomplete="current-password"></label>
+  <label>รหัสผ่านใหม่ (8 ตัวขึ้นไป) <input name="new" type="password" minlength="8" required autocomplete="new-password"></label>
+  <button class="primary">บันทึก</button>
+</form>
+{% endblock %}

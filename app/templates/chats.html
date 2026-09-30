@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}แชทลูกค้า{% endblock %}
+{% block content %}
+<div class="head-row">
+  <h1>แชทลูกค้า</h1>
+  {% if user.role == 'admin' %}
+  <form method="post" action="/chats/sync"><button {{ '' if connected else 'disabled' }}>ดึงรายชื่อแชทจาก Telegram</button></form>
+  {% endif %}
+</div>
+<p class="muted">เปิด "ติดตาม" เฉพาะกลุ่มลูกค้า AI จะอ่านเฉพาะแชทที่ติดตาม ร่างคำตอบ และเปิด ticket เมื่อพบปัญหา</p>
+
+{% if chats %}
+<table class="card">
+  <thead><tr><th>แชท</th><th>ประเภท</th><th class="num">ข้อความที่บันทึก</th><th>ติดตาม</th><th></th></tr></thead>
+  <tbody>
+  {% for c in chats %}
+    <tr class="{{ '' if c.monitored else 'dim' }}">
+      <td><a href="/chats/{{ c.id }}">{{ c.title }}</a>
+        {% if ai_errors.get(c.id) %}<div class="small error-text">AI: {{ ai_errors[c.id] }}</div>{% endif %}</td>
+      <td>{{ {'group': 'กลุ่ม', 'channel': 'แชนแนล', 'user': 'แชทส่วนตัว'}[c.kind] }}</td>
+      <td class="num">{{ counts.get(c.id, 0) }}</td>
+      <td>
+        {% if user.role == 'admin' %}
+        <form method="post" action="/chats/{{ c.id }}/toggle">
+          <button class="toggle {{ 'on' if c.monitored }}">{{ 'ติดตามอยู่' if c.monitored else 'ไม่ได้ติดตาม' }}</button>
+        </form>
+        {% else %}{{ 'ติดตามอยู่' if c.monitored else '-' }}{% endif %}
+      </td>
+      <td>{% if c.monitored %}
+        <form method="post" action="/chats/{{ c.id }}/analyze"><button class="small">วิเคราะห์ตอนนี้</button></form>
+      {% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+  <div class="card muted">ยังไม่มีรายชื่อแชท {{ 'กดปุ่ม "ดึงรายชื่อแชทจาก Telegram"' if connected else 'เชื่อมต่อบัญชี Telegram ก่อน' }}</div>
+{% endif %}
+{% endblock %}

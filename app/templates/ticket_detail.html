@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Ticket #{{ ticket.id }}{% endblock %}
+{% block content %}
+<p><a href="/tickets">← Tickets</a></p>
+<div class="head-row">
+  <h1>#{{ ticket.id }} {{ ticket.title }}</h1>
+  <div>
+    <span class="pill sev-{{ ticket.severity }}">{{ SEVERITY_LABELS[ticket.severity] }}</span>
+    <span class="pill st-{{ ticket.status }}">{{ TICKET_STATUSES[ticket.status] }}</span>
+  </div>
+</div>
+
+<div class="grid-2 wide-left">
+  <div>
+    <section class="card">
+      <h2>สรุปปัญหา (AI)</h2>
+      <dl class="facts">
+        <dt>ประเภท</dt><dd>{{ CATEGORIES.get(ticket.category, ticket.category) }}</dd>
+        <dt>ลูกค้า</dt><dd>{{ ticket.customer_name or '-' }}</dd>
+        <dt>แชท</dt><dd>{% if chat %}<a href="/chats/{{ chat.id }}">{{ chat.title }}</a>{% else %}{{ ticket.chat_id }}{% endif %}</dd>
+        <dt>เว็บไซต์</dt><dd>{% set u = ticket.website_url %}{% if u.lower().startswith(('http://', 'https://')) %}<a href="{{ u }}" target="_blank" rel="noopener noreferrer">{{ u }}</a>{% else %}{{ u or '-' }}{% endif %}</dd>
+        <dt>เปิดเมื่อ</dt><dd>{{ ticket.created_at | localtime }}</dd>
+      </dl>
+      <div class="summary">{{ ticket.summary }}</div>
+    </section>
+
+    {% set sc = ticket.site_check | fromjson %}
+    <section class="card">
+      <div class="head-row">
+        <h2>ตรวจสอบเว็บไซต์</h2>
+        <form method="post" action="/tickets/{{ ticket.id }}/check-site"><button class="small" {{ '' if ticket.website_url else 'disabled' }}>ตรวจอีกครั้ง</button></form>
+      </div>
+      {% if sc %}
+        <p><span class="pill {{ 'st-resolved' if sc.ok else 'sev-critical' }}">{{ 'เข้าได้' if sc.ok else 'เข้าไม่ได้' }}</span>
+          {{ sc.url }} · {% if sc.status_code %}HTTP {{ sc.status_code }}{% else %}{{ sc.error }}{% endif %} · {{ sc.elapsed_ms }} ms</p>
+        {% if sc.final_url and sc.final_url != sc.url %}<p class="muted small">redirect ไปที่ {{ sc.final_url }}</p>{% endif %}
+      {% else %}<p class="muted">ยังไม่ได้ตรวจ</p>{% endif %}
+    </section>
+
+    {% if attachments %}
+    <section class="card">
+      <h2>รูปภาพจากลูกค้า ({{ attachments | length }})</h2>
+      <div class="gallery">
+        {% for a in attachments %}
+          <a href="/media/{{ a.media_path }}" target="_blank"><img src="/media/{{ a.media_path }}" alt="{{ a.caption }}"></a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    <section class="card">
+      <h2>ไทม์ไลน์</h2>
+      <ol class="timeline">
+        {% for e in events %}
+          <li class="ev-{{ e.kind }}">
+            <div class="meta">{{ {'customer_message': 'ลูกค้า', 'ai_summary': 'AI สรุป', 'note': 'บันทึก', 'status': 'อัปเดต', 'site_check': 'ตรวจเว็บ'}.get(e.kind, e.kind) }} · {{ e.author }} · {{ e.created_at | localtime }}</div>
+            <div class="body">{{ e.body }}</div>
+          </li>
+        {% endfor %}
+      </ol>
+      <form method="post" action="/tickets/{{ ticket.id }}/note" class="stack">
+        <textarea name="body" rows="3" placeholder="บันทึกการแก้ไข / สาเหตุ / สิ่งที่ทำไปแล้ว" required></textarea>
+        <button>เพิ่มบันทึก</button>
+      </form>
+    </section>
+  </div>
+
+  <aside>
+    <section class="card">
+      <h2>จัดการ ticket</h2>
+      <form method="post" action="/tickets/{{ ticket.id }}/update" class="stack">
+        <label>หัวข้อ <input name="title" value="{{ ticket.title }}" required></label>
+        <label>สถานะ
+          <select name="status">{% for k, v in TICKET_STATUSES.items() %}<option value="{{ k }}" {{ 'selected' if ticket.status == k }}>{{ v }}</option>{% endfor %}</select>
+        </label>
+        <label>ความรุนแรง
+          <select name="severity">{% for k, v in SEVERITY_LABELS.items() %}<option value="{{ k }}" {{ 'selected' if ticket.severity == k }}>{{ v }}</option>{% endfor %}</select>
+        </label>
+        <label>ผู้รับผิดชอบ
+          <select name="assignee_id">
+            <option value="">-</option>
+            {% for u in users %}<option value="{{ u.id }}" {{ 'selected' if ticket.assignee_id == u.id }}>{{ u.username }} ({{ ROLES[u.role] }})</option>{% endfor %}
+          </select>
+        </label>
+        <label>ลิงก์เว็บไซต์ <input name="website_url" value="{{ ticket.website_url }}"></label>
+        <button class="primary">บันทึก</button>
+      </form>
+    </section>
+    {% if replies %}
+    <section class="card">
+      <h2>ข้อความที่ตอบลูกค้า</h2>
+      {% for r in replies %}
+        <div class="mini-reply"><span class="pill rs-{{ r.status }}">{{ REPLY_STATUSES.get(r.status, r.status) }}</span> {{ r.final_text }}</div>
+      {% endfor %}
+    </section>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

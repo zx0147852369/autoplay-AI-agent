@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Tickets{% endblock %}
+{% block content %}
+<div class="head-row">
+  <h1>Tickets ปัญหาลูกค้า</h1>
+  <form method="get" class="row">
+    <select name="status" onchange="this.form.submit()">
+      <option value="active" {{ 'selected' if status == 'active' }}>ยังไม่ปิด</option>
+      {% for k, v in TICKET_STATUSES.items() %}<option value="{{ k }}" {{ 'selected' if status == k }}>{{ v }}</option>{% endfor %}
+      <option value="all" {{ 'selected' if status == 'all' }}>ทั้งหมด</option>
+    </select>
+    <select name="category" onchange="this.form.submit()">
+      <option value="">ทุกประเภท</option>
+      {% for k, v in CATEGORIES.items() if k != 'none' %}<option value="{{ k }}" {{ 'selected' if category == k }}>{{ v }}</option>{% endfor %}
+    </select>
+  </form>
+</div>
+
+{% if tickets %}
+<table class="card">
+  <thead><tr><th>#</th><th>ปัญหา</th><th>ประเภท</th><th>ลูกค้า / แชท</th><th>ความรุนแรง</th><th>สถานะ</th><th>ผู้รับผิดชอบ</th><th>เวลา</th></tr></thead>
+  <tbody>
+  {% for t in tickets %}
+    <tr>
+      <td><a href="/tickets/{{ t.id }}">#{{ t.id }}</a></td>
+      <td><a href="/tickets/{{ t.id }}">{{ t.title }}</a>
+        {% set sc = t.site_check | fromjson %}
+        {% if sc %}<div class="small {{ 'ok-text' if sc.ok else 'error-text' }}">เว็บ: {{ 'เข้าได้' if sc.ok else 'เข้าไม่ได้' }}</div>{% endif %}</td>
+      <td>{{ CATEGORIES.get(t.category, t.category) }}</td>
+      <td>{{ t.customer_name or '-' }}<div class="muted small">{{ chat_titles.get(t.chat_id, '') }}</div></td>
+      <td><span class="pill sev-{{ t.severity }}">{{ SEVERITY_LABELS[t.severity] }}</span></td>
+      <td><span class="pill st-{{ t.status }}">{{ TICKET_STATUSES[t.status] }}</span></td>
+      <td>{{ users.get(t.assignee_id, '-') }}</td>
+      <td class="small">{{ t.created_at | localtime }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+  <div class="card muted">ไม่มี ticket</div>
+{% endif %}
+{% endblock %}

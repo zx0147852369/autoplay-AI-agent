@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}บัญชี Telegram{% endblock %}
+{% block content %}
+<h1>บัญชี Telegram</h1>
+
+<section class="card">
+  <h2>สถานะ</h2>
+  {% if connected %}
+    <p><span class="pill st-resolved">เชื่อมต่อแล้ว</span> ในชื่อ <strong>{{ account.me_name }}</strong> ({{ account.phone }})</p>
+    <p class="muted">ระบบจะอ่านข้อความเฉพาะแชทที่เลือกติดตามในหน้า <a href="/chats">แชทลูกค้า</a> และจะไม่ส่งข้อความใดๆ จนกว่าจะได้รับการอนุมัติ</p>
+    <form method="post" action="/telegram/logout" onsubmit="return confirm('ออกจากระบบ Telegram บนระบบนี้?')">
+      <button class="danger">ออกจากระบบ Telegram</button>
+    </form>
+  {% else %}
+    <p><span class="pill st-open">{{ {'code_sent': 'รอใส่รหัสยืนยัน', 'password_needed': 'รอใส่รหัสผ่าน 2FA', 'error': 'ผิดพลาด'}.get(account.status, 'ยังไม่เชื่อมต่อ') }}</span></p>
+    {% if account.last_error %}<div class="flash error">{{ account.last_error }}</div>{% endif %}
+  {% endif %}
+</section>
+
+{% if not connected %}
+<section class="card">
+  <h2>ขั้นตอนที่ 1: ข้อมูลแอป Telegram และเบอร์โทร</h2>
+  <p class="muted">สร้าง API ID / API Hash ได้ที่ <a href="https://my.telegram.org/apps" target="_blank" rel="noopener">my.telegram.org/apps</a> (ล็อกอินด้วยเบอร์ของคุณเอง แล้วสร้างแอป)</p>
+  <form method="post" action="/telegram/send-code" class="stack">
+    <div class="row">
+      <label>API ID <input name="api_id" inputmode="numeric" value="{{ account.api_id or '' }}" required></label>
+      <label>API Hash <input name="api_hash" autocomplete="off" placeholder="{{ 'บันทึกไว้แล้ว (เว้นว่างเพื่อใช้ค่าเดิม)' if has_api_hash else '' }}" {{ '' if has_api_hash else 'required' }}></label>
+    </div>
+    <label>เบอร์โทรศัพท์ Telegram <input name="phone" placeholder="+66812345678" value="{{ account.phone }}" required></label>
+    <button class="primary">ขอรหัสยืนยัน</button>
+  </form>
+</section>
+
+<section class="card {{ '' if account.status in ('code_sent', 'password_needed') else 'disabled' }}">
+  <h2>ขั้นตอนที่ 2: รหัสยืนยันจาก Telegram</h2>
+  <form method="post" action="/telegram/verify-code" class="row">
+    <label>รหัสที่ได้รับในแอป Telegram <input name="code" inputmode="numeric" autocomplete="one-time-code" required></label>
+    <button class="primary">ยืนยันรหัส</button>
+  </form>
+</section>
+
+<section class="card {{ '' if account.status == 'password_needed' else 'disabled' }}">
+  <h2>ขั้นตอนที่ 3: รหัสผ่าน Telegram (ถ้าเปิดยืนยันสองขั้นตอน)</h2>
+  <p class="muted">รหัสผ่านนี้ใช้เข้าสู่ระบบครั้งเดียวเท่านั้น ระบบไม่บันทึกรหัสผ่าน แต่เก็บเซสชันแบบเข้ารหัสไว้</p>
+  <form method="post" action="/telegram/verify-password" class="row">
+    <label>รหัสผ่าน Telegram <input name="password" type="password" autocomplete="off" required></label>
+    <button class="primary">เข้าสู่ระบบ</button>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}เข้าสู่ระบบ{% endblock %}
+{% block content %}
+<div class="card login">
+  <h1>เข้าสู่ระบบหลังบ้าน</h1>
+  <p class="muted">ระบบ AI ตอบแชท Telegram และบันทึกปัญหาลูกค้า</p>
+  {% if need_setup %}
+    <div class="flash error">ยังไม่ได้ตั้งค่า <code>ADMIN_PASSWORD</code> ในไฟล์ <code>.env</code> (ใช้สร้างผู้ดูแลระบบคนแรก)</div>
+  {% endif %}
+  <form method="post" action="/login" class="stack">
+    <label>ชื่อผู้ใช้ <input name="username" required autofocus autocomplete="username"></label>
+    <label>รหัสผ่าน <input name="password" type="password" required autocomplete="current-password"></label>
+    <button class="primary">เข้าสู่ระบบ</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}ภาพรวม{% endblock %}
+{% block content %}
+<h1>ภาพรวม</h1>
+<div class="stats">
+  <a class="stat" href="/telegram">
+    <span class="label">Telegram</span>
+    <span class="value {{ 'ok' if connected else 'bad' }}">{{ 'เชื่อมต่อแล้ว' if connected else 'ยังไม่เชื่อมต่อ' }}</span>
+    <span class="muted">{{ account.me_name or account.phone or '-' }}</span>
+  </a>
+  <a class="stat" href="/replies">
+    <span class="label">ข้อความรออนุมัติ</span>
+    <span class="value">{{ pending }}</span>
+    <span class="muted">ต้องอนุมัติก่อนส่งถึงลูกค้า</span>
+  </a>
+  <a class="stat" href="/tickets">
+    <span class="label">Ticket ที่ยังไม่ปิด</span>
+    <span class="value">{{ open_by_cat.values() | sum }}</span>
+    <span class="muted">รอโปรแกรมเมอร์แก้ไข</span>
+  </a>
+  <a class="stat" href="/chats">
+    <span class="label">แชทที่ติดตาม</span>
+    <span class="value">{{ monitored }}</span>
+    <span class="muted">AI อ่านข้อความในแชทเหล่านี้</span>
+  </a>
+</div>
+
+{% if ai_errors %}
+<div class="flash error">
+  AI ทำงานผิดพลาดในบางแชท:
+  <ul>{% for cid, err in ai_errors.items() %}<li>{{ chat_titles.get(cid, cid) }}: {{ err }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<div class="grid-2">
+  <section class="card">
+    <h2>ปัญหาที่เปิดอยู่ แยกตามประเภท</h2>
+    {% if open_by_cat %}
+      <table>
+        {% for cat, n in open_by_cat.items() | sort(attribute=1, reverse=True) %}
+          <tr><td><a href="/tickets?category={{ cat }}">{{ CATEGORIES.get(cat, cat) }}</a></td><td class="num">{{ n }}</td></tr>
+        {% endfor %}
+      </table>
+    {% else %}<p class="muted">ไม่มีปัญหาค้างอยู่</p>{% endif %}
+  </section>
+  <section class="card">
+    <h2>Ticket ล่าสุด</h2>
+    {% if recent %}
+      <table>
+        {% for t in recent %}
+          <tr>
+            <td><a href="/tickets/{{ t.id }}">#{{ t.id }} {{ t.title }}</a><div class="muted small">{{ chat_titles.get(t.chat_id, '') }} · {{ t.created_at | localtime }}</div></td>
+            <td><span class="pill sev-{{ t.severity }}">{{ SEVERITY_LABELS[t.severity] }}</span></td>
+            <td><span class="pill st-{{ t.status }}">{{ TICKET_STATUSES[t.status] }}</span></td>
+          </tr>
+        {% endfor %}
+      </table>
+    {% else %}<p class="muted">ยังไม่มี ticket</p>{% endif %}
+  </section>
+</div>
+{% endblock %}

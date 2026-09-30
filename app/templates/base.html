@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}หลังบ้าน{% endblock %} · Telegram AI Support</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+{% if user %}
+<header class="topbar">
+  <a class="brand" href="/">AI Support</a>
+  <nav>
+    {% if user.role in ('admin', 'agent') %}
+      <a href="/" class="{{ 'active' if path == '/' }}">ภาพรวม</a>
+      <a href="/replies" class="{{ 'active' if path.startswith('/replies') }}">รออนุมัติ <span class="badge" id="badge-pending"></span></a>
+    {% endif %}
+    <a href="/tickets" class="{{ 'active' if path.startswith('/tickets') }}">Tickets <span class="badge muted" id="badge-tickets"></span></a>
+    {% if user.role in ('admin', 'agent') %}
+      <a href="/chats" class="{{ 'active' if path.startswith('/chats') }}">แชทลูกค้า</a>
+    {% endif %}
+    {% if user.role == 'admin' %}
+      <a href="/telegram" class="{{ 'active' if path.startswith('/telegram') }}">บัญชี Telegram</a>
+      <a href="/settings" class="{{ 'active' if path.startswith('/settings') }}">ตั้งค่า</a>
+    {% endif %}
+  </nav>
+  <div class="me">
+    <a href="/account">{{ user.username }}</a> · {{ ROLES[user.role] }}
+    <form method="post" action="/logout" class="inline"><button class="link">ออกจากระบบ</button></form>
+  </div>
+</header>
+{% endif %}
+<main class="{{ 'narrow' if not user }}">
+  {% for f in flashes %}<div class="flash {{ f.kind }}">{{ f.message }}</div>{% endfor %}
+  {% block content %}{% endblock %}
+</main>
+{% if user %}
+<script>
+  async function refreshBadges() {
+    try {
+      const r = await fetch('/api/badge');
+      if (!r.ok) return;
+      const d = await r.json();
+      const p = document.getElementById('badge-pending');
+      const t = document.getElementById('badge-tickets');
+      if (p) p.textContent = d.pending || '';
+      if (t) t.textContent = d.open_tickets || '';
+      document.title = (d.pending ? `(${d.pending}) ` : '') + document.title.replace(/^\(\d+\) /, '');
+    } catch (e) {}
+  }
+  refreshBadges();
+  setInterval(refreshBadges, 10000);
+</script>
+{% endif %}
+{% block scripts %}{% endblock %}
+</body>
+</html>

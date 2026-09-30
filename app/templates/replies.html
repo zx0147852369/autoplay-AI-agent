@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}ข้อความรออนุมัติ{% endblock %}
+{% block content %}
+<div class="head-row">
+  <h1>ข้อความตอบกลับ</h1>
+  <div class="tabs">
+    {% for key, label in [('pending', 'รออนุมัติ'), ('sent', 'ส่งแล้ว'), ('rejected', 'ปฏิเสธ'), ('failed', 'ส่งไม่สำเร็จ'), ('all', 'ทั้งหมด')] %}
+      <a href="/replies?status={{ key }}" class="{{ 'active' if status == key }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+</div>
+<p class="muted">AI ร่างข้อความไว้ให้ ข้อความจะถูกส่งถึงลูกค้า<strong>เฉพาะเมื่อกด "อนุมัติและส่ง"</strong> เท่านั้น แก้ไขข้อความก่อนส่งได้</p>
+
+{% for r in replies %}
+<article class="card reply">
+  <div class="reply-head">
+    <strong>{{ chat_titles.get(r.chat_id, r.chat_id) }}</strong>
+    <span class="muted small">{{ r.created_at | localtime }}</span>
+    <span class="pill rs-{{ r.status }}">{{ REPLY_STATUSES.get(r.status, r.status) }}</span>
+    {% if r.ticket_id %}<a class="pill" href="/tickets/{{ r.ticket_id }}">ticket #{{ r.ticket_id }}</a>{% endif %}
+  </div>
+
+  {% if context.get(r.id) %}
+  <div class="chatlog compact">
+    {% for m in context[r.id] %}
+      <div class="msg {{ 'out' if m.is_outgoing }} {{ 'target' if m.tg_message_id == r.reply_to_tg_id }}">
+        <div class="meta">{{ '[ทีมงาน]' if m.is_outgoing else m.sender_name }} · {{ m.date | localtime }}</div>
+        {% if m.text %}<div class="body">{{ m.text }}</div>{% endif %}
+        {% if m.media_path %}<a href="/media/{{ m.media_path }}" target="_blank"><img src="/media/{{ m.media_path }}" class="thumb small" alt="รูป"></a>{% endif %}
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if r.note %}<p class="note">💡 {{ r.note }}</p>{% endif %}
+
+  {% if r.status in ('pending', 'failed') %}
+    {% if r.error %}<div class="flash error">{{ r.error }}</div>{% endif %}
+    <form method="post" action="/replies/{{ r.id }}/approve" class="stack" id="approve-{{ r.id }}">
+      <label>ข้อความที่จะส่ง<textarea name="text" rows="4" required>{{ r.final_text }}</textarea></label>
+      <div class="actions">
+        <button class="primary" onclick="return confirm('ส่งข้อความนี้ถึงลูกค้า?')">อนุมัติและส่ง</button>
+      </div>
+    </form>
+    <div class="actions secondary">
+      <form method="post" action="/replies/{{ r.id }}/regenerate" class="row grow" onsubmit="this.text.value=document.querySelector('#approve-{{ r.id }} textarea').value">
+        <input type="hidden" name="text">
+        <input name="instruction" placeholder="สั่ง AI เขียนใหม่ เช่น สั้นลง / ขอสลิปด้วย / สุภาพขึ้น" required>
+        <button>ให้ AI เขียนใหม่</button>
+      </form>
+      <form method="post" action="/replies/{{ r.id }}/reject" class="row">
+        <input name="reason" placeholder="เหตุผล (ไม่บังคับ)">
+        <button class="danger">ปฏิเสธ ไม่ส่ง</button>
+      </form>
+    </div>
+  {% else %}
+    <div class="sent-text">{{ r.final_text }}</div>
+    <p class="muted small">
+      {% if r.decided_by %}โดย {{ r.decided_by }} · {{ r.decided_at | localtime }}{% endif %}
+      {% if r.reject_reason %} · เหตุผล: {{ r.reject_reason }}{% endif %}
+      {% if r.final_text != r.ai_text %} · (แก้ไขจากร่างของ AI){% endif %}
+    </p>
+  {% endif %}
+</article>
+{% else %}
+  <div class="card muted">ไม่มีข้อความ</div>
+{% endfor %}
+{% endblock %}
+{% block scripts %}
+{% if status == 'pending' %}
+<script>
+  // รีเฟรชหน้าอัตโนมัติเมื่อมีร่างใหม่ ถ้าผู้ใช้ไม่ได้กำลังพิมพ์
+  let known = {{ replies | length }};
+  setInterval(async () => {
+    if (document.activeElement && ['TEXTAREA', 'INPUT'].includes(document.activeElement.tagName)) return;
+    const r = await fetch('/api/badge'); if (!r.ok) return;
+    const d = await r.json();
+    if (d.pending !== known) location.reload();
+  }, 10000);
+</script>
+{% endif %}
+{% endblock %}

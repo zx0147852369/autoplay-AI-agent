@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ chat.title }}{% endblock %}
+{% block content %}
+<p><a href="/chats">← แชทลูกค้า</a></p>
+<h1>{{ chat.title }}</h1>
+<div class="card chatlog">
+  {% for m in messages %}
+    <div class="msg {{ 'out' if m.is_outgoing }}">
+      <div class="meta">#{{ m.tg_message_id }} · {{ '[ทีมงาน]' if m.is_outgoing else m.sender_name }} · {{ m.date | localtime }}
+        {% if not m.analyzed %}<span class="pill st-open">ยังไม่วิเคราะห์</span>{% endif %}</div>
+      {% if m.text %}<div class="body">{{ m.text }}</div>{% endif %}
+      {% if m.media_path %}<a href="/media/{{ m.media_path }}" target="_blank"><img src="/media/{{ m.media_path }}" alt="รูปจากลูกค้า" class="thumb"></a>{% endif %}
+    </div>
+  {% else %}
+    <p class="muted">ยังไม่มีข้อความ (ระบบบันทึกเฉพาะข้อความใหม่หลังจากเริ่มติดตาม)</p>
+  {% endfor %}
+</div>
+{% endblock %}
