@@ -174,7 +174,13 @@ class TelegramService:
         except ValueError:
             await self.client.get_dialogs()
             entity = await self.client.get_input_entity(chat_id)
-        await self.client.send_message(entity, text, reply_to=reply_to or None)
+        try:
+            await self.client.send_message(entity, text, reply_to=reply_to or None)
+        except RPCError as e:
+            # ข้อความลูกค้าที่จะตอบกลับถูกลบไปแล้ว -> ส่งเป็นข้อความปกติแทน
+            if not reply_to or "REPLY" not in str(e).upper():
+                raise
+            await self.client.send_message(entity, text)
 
     # ------------------------------------------------------------------ events
     async def _handle_new_message(self, event: events.NewMessage.Event) -> None:

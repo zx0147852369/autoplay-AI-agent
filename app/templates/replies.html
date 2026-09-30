@@ -86,12 +86,13 @@
 {% if status == 'pending' %}
 <script>
   // รีเฟรชหน้าอัตโนมัติเมื่อมีร่างใหม่ ถ้าผู้ใช้ไม่ได้กำลังพิมพ์
-  const known = {{ replies | length }};
+  let known = null;
   setInterval(async () => {
     if (document.activeElement && ['TEXTAREA', 'INPUT'].includes(document.activeElement.tagName)) return;
     const r = await fetch('/api/badge'); if (!r.ok) return;
     const d = await r.json();
-    if (d.pending !== known) location.reload();
+    if (known === null) known = d.pending;
+    else if (d.pending !== known) location.reload();
   }, 10000);
 </script>
 {% endif %}

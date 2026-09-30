@@ -2,6 +2,8 @@ import asyncio
 import json
 import logging
 import sys
+import time
+from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from datetime import timezone
 from pathlib import Path
@@ -28,6 +30,7 @@ from .database import (
     User,
     get_settings,
     init_db,
+    int_setting,
     utcnow,
 )
 from .security import decrypt, hash_password, verify_password
@@ -131,7 +134,8 @@ def current_user(request: Request, *roles: str) -> User:
 
 
 def flash(request: Request, message: str, kind: str = "ok") -> None:
-    request.session.setdefault("flash", []).append({"message": message, "kind": kind})
+    # เก็บไว้แค่ 3 ข้อความล่าสุด กันคุกกี้ session ใหญ่เกินจนเบราว์เซอร์ทิ้ง
+    request.session["flash"] = (request.session.get("flash", []) + [{"message": message, "kind": kind}])[-3:]
 
 
 def render(request: Request, name: str, user: User | None, **context):
@@ -149,13 +153,29 @@ async def login_page(request: Request):
     return render(request, "login.html", None, need_setup=not ADMIN_PASSWORD)
 
 
+# กันการเดารหัสผ่าน: ผิดเกิน LOGIN_MAX_FAILS ครั้งใน LOGIN_WINDOW วินาที ต่อ IP -> ต้องรอ
+LOGIN_MAX_FAILS = 8
+LOGIN_WINDOW = 10 * 60
+_login_fails: dict[str, deque] = defaultdict(deque)
+
+
 @app.post("/login")
 async def login(request: Request, username: str = Form(...), password: str = Form(...)):
+    ip = request.client.host if request.client else "?"
+    fails, now = _login_fails[ip], time.monotonic()
+    while fails and now - fails[0] > LOGIN_WINDOW:
+        fails.popleft()
+    if len(fails) >= LOGIN_MAX_FAILS:
+        wait = int(LOGIN_WINDOW - (now - fails[0])) // 60 + 1
+        flash(request, f"ใส่รหัสผ่านผิดบ่อยเกินไป กรุณาลองใหม่ในอีก {wait} นาที", "error")
+        return back("/login")
     with SessionLocal() as db:
         user = db.scalar(select(User).where(User.username == username.strip()))
     if not user or not verify_password(password, user.password_hash):
+        fails.append(now)
         flash(request, "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง", "error")
         return back("/login")
+    fails.clear()
     request.session.clear()
     request.session["user_id"] = user.id
     return back("/" if user.role != "programmer" else "/tickets")
@@ -468,9 +488,9 @@ async def ticket_update(request: Request, ticket_id: int, status: str = Form(...
             if severity in SEVERITY_LABELS and severity != ticket.severity:
                 changes.append(f"ความรุนแรง: {SEVERITY_LABELS[ticket.severity]} → {SEVERITY_LABELS[severity]}")
                 ticket.severity = severity
-            new_assignee = int(assignee_id) if assignee_id else None
+            assignee = db.get(User, int(assignee_id)) if assignee_id.isdigit() else None
+            new_assignee = assignee.id if assignee else None
             if new_assignee != ticket.assignee_id:
-                assignee = db.get(User, new_assignee) if new_assignee else None
                 changes.append(f"ผู้รับผิดชอบ: {assignee.username if assignee else '-'}")
                 ticket.assignee_id = new_assignee
             ticket.website_url, ticket.title = website_url.strip(), title.strip() or ticket.title
@@ -532,6 +552,9 @@ async def settings_save(request: Request):
         for key in DEFAULT_SETTINGS:
             if key in ("auto_draft", "auto_ticket", "site_check"):
                 value = "1" if form.get(key) else "0"
+            elif key in ("debounce_seconds", "context_messages"):
+                low, high = (0, 600) if key == "debounce_seconds" else (5, 100)
+                value = str(int_setting({key: str(form.get(key, ""))}, key, low, high))
             elif key in form:
                 value = str(form[key]).strip()
             else:

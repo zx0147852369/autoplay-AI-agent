@@ -29,6 +29,8 @@ SEVERITIES = ["low", "medium", "high", "critical"]
 IMAGE_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp"}
 MAX_IMAGES = 4
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
+# โมเดลที่รองรับ fallbacks="default" (ถ้าถูกปฏิเสธ ระบบจะลองโมเดลสำรองให้อัตโนมัติ)
+FALLBACK_MODELS = {"claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5", "claude-fable-5-1"}
 
 SYSTEM_INSTRUCTIONS = f"""คุณคือผู้ช่วยทีมซัพพอร์ตลูกค้า ทำงานผ่านบัญชี Telegram ของทีมงาน
 คุณจะได้รับบทสนทนาล่าสุดในแชทของลูกค้า ข้อความที่ติดป้าย [ใหม่] คือข้อความที่ยังไม่เคยวิเคราะห์ ให้ทำ 2 อย่าง:
@@ -169,15 +171,16 @@ def _open_tickets_text(tickets: list[Ticket]) -> str:
 
 
 async def _call(settings: dict[str, str], messages: list[dict], fmt: dict | None = None):
+    model = settings.get("ai_model") or "claude-opus-5-5"
+    extra = {"betas": [FALLBACK_BETA], "fallbacks": "default"} if model in FALLBACK_MODELS else {}
     try:
         response = await get_client().beta.messages.create(
-            model=settings.get("ai_model") or "claude-opus-5-5",
+            model=model,
             max_tokens=16000,
             system=_system_prompt(settings),
             messages=messages,
             output_config=_output_config(settings, fmt),
-            betas=[FALLBACK_BETA],
-            fallbacks="default",
+            **extra,
         )
     except (anthropic.AuthenticationError, TypeError) as e:
         # TypeError = SDK หาข้อมูลยืนยันตัวตนไม่เจอ (ยังไม่ได้ใส่ ANTHROPIC_API_KEY)

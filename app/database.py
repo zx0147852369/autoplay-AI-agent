@@ -195,6 +195,15 @@ def init_db() -> None:
         db.commit()
 
 
+def int_setting(settings: dict[str, str], key: str, low: int, high: int) -> int:
+    """อ่านค่าตัวเลขจากตั้งค่า ถ้าผิดรูปแบบใช้ค่าเริ่มต้น และบังคับให้อยู่ในช่วง"""
+    try:
+        value = int(settings.get(key) or DEFAULT_SETTINGS[key])
+    except ValueError:
+        value = int(DEFAULT_SETTINGS[key])
+    return max(low, min(high, value))
+
+
 def get_settings(db) -> dict[str, str]:
     values = dict(DEFAULT_SETTINGS)
     for row in db.scalars(select(Setting)):

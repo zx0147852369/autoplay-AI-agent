@@ -7,7 +7,9 @@ import logging
 from sqlalchemy import select
 
 from . import ai_service
-from .database import Chat, Message, Reply, SessionLocal, Ticket, TicketAttachment, TicketEvent, get_settings
+from .database import (
+    Chat, Message, Reply, SessionLocal, Ticket, TicketAttachment, TicketEvent, get_settings, int_setting,
+)
 from .site_checker import check_site
 
 log = logging.getLogger(__name__)
@@ -22,7 +24,7 @@ last_error: dict[int, str] = {}  # chat_id -> ข้อผิดพลาดล�
 def schedule(chat_id: int) -> None:
     """ลูกค้ามักส่งหลายข้อความติดกัน จึงรอจนเงียบไป N วินาทีแล้วค่อยวิเคราะห์ทีเดียว"""
     with SessionLocal() as db:
-        delay = max(0, int(get_settings(db).get("debounce_seconds") or 15))
+        delay = int_setting(get_settings(db), "debounce_seconds", 0, 600)
     if (task := _timers.get(chat_id)) and not task.done():
         task.cancel()
     _timers[chat_id] = asyncio.get_running_loop().create_task(_delayed(chat_id, delay))
@@ -52,7 +54,7 @@ async def analyze(chat_id: int) -> str:
             ))
             if not new_messages:
                 return "ไม่มีข้อความใหม่"
-            limit = max(len(new_messages), int(settings.get("context_messages") or 20))
+            limit = max(len(new_messages), int_setting(settings, "context_messages", 5, 100))
             history = list(db.scalars(
                 select(Message).where(Message.chat_id == chat_id)
                 .order_by(Message.date.desc(), Message.id.desc()).limit(limit)
@@ -156,7 +158,10 @@ async def _save_ticket(chat_id: int, result: ai_service.Analysis, new_messages: 
         ticket_id, url = ticket.id, ticket.website_url
 
     if url and settings.get("site_check") == "1":
-        await run_site_check(ticket_id)
+        try:
+            await run_site_check(ticket_id)
+        except Exception:  # noqa: BLE001
+            log.exception("site check failed for ticket %s", ticket_id)
     return ticket_id
 
 

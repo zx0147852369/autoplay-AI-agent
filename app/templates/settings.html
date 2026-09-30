@@ -68,7 +68,7 @@
         <span class="avatar sm">{{ u.username[:1] | upper }}</span>
         <span class="li-main"><span class="li-title">{{ u.username }}{% if u.id == user.id %} <span class="muted small">(คุณ)</span>{% endif %}</span>
           <span class="li-sub">{{ ROLES[u.role] }} · สร้างเมื่อ {{ u.created_at | localtime }}</span></span>
-        {% if u.id != user.id %}<form method="post" action="/users/{{ u.id }}/delete" onsubmit="return confirm('ลบผู้ใช้ {{ u.username }}?')"><button class="sm danger">{{ icon('trash', 14) }} ลบ</button></form>{% endif %}
+        {% if u.id != user.id %}<form method="post" action="/users/{{ u.id }}/delete" onsubmit="return confirm({{ ('ลบผู้ใช้ ' ~ u.username ~ '?') | tojson | forceescape }})"><button class="sm danger">{{ icon('trash', 14) }} ลบ</button></form>{% endif %}
       </div>
     {% endfor %}
   </div>

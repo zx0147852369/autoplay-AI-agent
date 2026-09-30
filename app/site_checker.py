@@ -63,5 +63,7 @@ async def check_site(url: str) -> dict:
         result["error"] = f"เชื่อมต่อไม่ได้: {e}"
     except httpx.HTTPError as e:
         result["error"] = f"ผิดพลาด: {e}"
+    except (httpx.InvalidURL, ValueError, UnicodeError):
+        result["error"] = "ลิงก์ไม่ถูกต้อง"
     result["elapsed_ms"] = round((time.perf_counter() - started) * 1000)
     return result
