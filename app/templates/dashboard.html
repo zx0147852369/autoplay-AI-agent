@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_icons.html" import icon %}
+{% from "_icons.html" import icon, cicon %}
 {% block title %}ภาพรวม{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -12,22 +12,22 @@
 
 <div class="strip">
   <a class="strip-cell" href="/replies">
-    <span class="strip-ic {{ 'tone-red' if pending else 'tone-grey' }}">{{ icon('inbox', 18) }}</span>
+    <span class="strip-ic {{ 'alive' if pending }}">{{ cicon('mail-clock') }}</span>
     <span class="strip-label">รออนุมัติ</span>
     <span class="strip-value {{ 'hot' if pending }}">{{ pending }}</span>
   </a>
   <a class="strip-cell" href="/tickets">
-    <span class="strip-ic tone-amber">{{ icon('ticket', 18) }}</span>
+    <span class="strip-ic">{{ cicon('clipboard-task') }}</span>
     <span class="strip-label">Ticket ค้าง</span>
     <span class="strip-value">{{ open_by_cat.values() | sum }}</span>
   </a>
   <a class="strip-cell" href="/chats">
-    <span class="strip-ic tone-blue">{{ icon('chat', 18) }}</span>
+    <span class="strip-ic">{{ cicon('chat-multiple') }}</span>
     <span class="strip-label">แชทที่ติดตาม</span>
     <span class="strip-value">{{ monitored }}</span>
   </a>
   <a class="strip-cell" href="/telegram">
-    <span class="strip-ic {{ 'tone-green' if connected else 'tone-red' }}">{{ icon('send', 18) }}</span>
+    <span class="strip-ic {{ '' if connected else 'dim' }}">{{ cicon('telegram') }}</span>
     <span class="strip-label">Telegram</span>
     <span class="strip-value text"><span class="dot {{ 'live' if connected else 'off' }}"></span>{{ 'ออนไลน์' if connected else 'ไม่ได้เชื่อมต่อ' }}</span>
   </a>
@@ -35,10 +35,10 @@
 
 <p class="section-label">{{ icon('clock', 13) }} วันนี้</p>
 <div class="strip compact">
-  <div class="strip-cell"><span class="strip-ic tone-grey">{{ icon('chat', 16) }}</span><span class="strip-label">ข้อความลูกค้าเข้า</span><span class="strip-value">{{ today_counts.messages }}</span></div>
-  <div class="strip-cell"><span class="strip-ic tone-grey">{{ icon('plus', 16) }}</span><span class="strip-label">Ticket เปิดใหม่</span><span class="strip-value">{{ today_counts.tickets }}</span></div>
-  <div class="strip-cell"><span class="strip-ic tone-grey">{{ icon('check', 16) }}</span><span class="strip-label">แก้ไขเสร็จ</span><span class="strip-value">{{ today_counts.resolved }}</span></div>
-  <div class="strip-cell"><span class="strip-ic tone-grey">{{ icon('send', 16) }}</span><span class="strip-label">คำตอบที่ส่ง</span><span class="strip-value">{{ today_counts.sent }}</span></div>
+  <div class="strip-cell"><span class="strip-ic">{{ cicon('chat', 22) }}</span><span class="strip-label">ข้อความลูกค้าเข้า</span><span class="strip-value">{{ today_counts.messages }}</span></div>
+  <div class="strip-cell"><span class="strip-ic">{{ cicon('add-circle', 22) }}</span><span class="strip-label">Ticket เปิดใหม่</span><span class="strip-value">{{ today_counts.tickets }}</span></div>
+  <div class="strip-cell"><span class="strip-ic">{{ cicon('checkmark-circle', 22) }}</span><span class="strip-label">แก้ไขเสร็จ</span><span class="strip-value">{{ today_counts.resolved }}</span></div>
+  <div class="strip-cell"><span class="strip-ic">{{ cicon('send', 22) }}</span><span class="strip-label">คำตอบที่ส่ง</span><span class="strip-value">{{ today_counts.sent }}</span></div>
 </div>
 
 {% if ai_errors %}

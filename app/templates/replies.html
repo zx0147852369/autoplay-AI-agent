@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_icons.html" import icon %}
+{% from "_icons.html" import icon, cicon %}
 {% block title %}รออนุมัติ{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -9,13 +9,13 @@
   </div>
 </div>
 
-{% set tabs = [('pending', 'รออนุมัติ', 'inbox', 'tone-amber'), ('sent', 'ส่งแล้ว', 'send', 'tone-green'),
-               ('rejected', 'ปฏิเสธ', 'x', 'tone-grey'), ('failed', 'ส่งไม่สำเร็จ', 'alert', 'tone-red'),
-               ('all', 'ทั้งหมด', 'activity', 'tone-blue')] %}
+{% set tabs = [('pending', 'รออนุมัติ', 'mail-clock', ''), ('sent', 'ส่งแล้ว', 'send', ''),
+               ('rejected', 'ปฏิเสธ', 'dismiss-circle', ''), ('failed', 'ส่งไม่สำเร็จ', 'warning', ''),
+               ('all', 'ทั้งหมด', 'mail-multiple', '')] %}
 <nav class="strip compact" style="--cols:5">
   {% for key, label, ic, tone in tabs %}
     <a class="strip-cell {{ 'active' if status == key }}" href="/replies?status={{ key }}">
-      <span class="strip-ic {{ tone }}">{{ icon(ic, 16) }}</span>
+      <span class="strip-ic {{ 'alive' if key == 'pending' and status_counts.get(key) }}">{{ cicon(ic, 22) }}</span>
       <span class="strip-label">{{ label }}</span>
       <span class="strip-value {{ 'hot' if key == 'pending' and status_counts.get(key) }}">{{ status_counts.get(key, 0) }}</span>
     </a>

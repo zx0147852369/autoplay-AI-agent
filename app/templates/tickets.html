@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_icons.html" import icon %}
+{% from "_icons.html" import icon, cicon %}
 {% block title %}Tickets{% endblock %}
 {% block scripts %}
 <script>
@@ -26,13 +26,13 @@
   </div>
 </div>
 
-{% set cells = [('active', 'ยังไม่ปิด', 'ticket', 'tone-amber'), ('open', 'เปิดใหม่', 'plus', 'tone-amber'),
-                ('in_progress', 'กำลังแก้ไข', 'refresh', 'tone-blue'), ('resolved', 'แก้ไขแล้ว', 'check', 'tone-green'),
-                ('closed', 'ปิดแล้ว', 'x', 'tone-grey'), ('all', 'ทั้งหมด', 'activity', 'tone-grey')] %}
+{% set cells = [('active', 'ยังไม่ปิด', 'clipboard-task'), ('open', 'เปิดใหม่', 'add-circle'),
+                ('in_progress', 'กำลังแก้ไข', 'wrench'), ('resolved', 'แก้ไขแล้ว', 'checkmark-circle'),
+                ('closed', 'ปิดแล้ว', 'lock-closed'), ('all', 'ทั้งหมด', 'apps-list')] %}
 <nav class="strip compact" style="--cols:6">
-  {% for key, label, ic, tone in cells %}
+  {% for key, label, ic in cells %}
     <a class="strip-cell {{ 'active' if status == key }}" href="/tickets?status={{ key }}{% if category %}&category={{ category }}{% endif %}{% if q %}&q={{ q | urlencode }}{% endif %}">
-      <span class="strip-ic {{ tone }}">{{ icon(ic, 16) }}</span>
+      <span class="strip-ic">{{ cicon(ic, 22) }}</span>
       <span class="strip-label">{{ label }}</span>
       <span class="strip-value">{{ status_counts.get(key, 0) }}</span>
     </a>

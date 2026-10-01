@@ -405,14 +405,21 @@ a.tag:hover { text-decoration: none; border-color: var(--line-2); }
 a.strip-cell:hover { background: var(--surface-2); text-decoration: none; }
 .strip-cell.active { background: var(--surface-2); box-shadow: inset 0 -3px 0 var(--mint); }
 .strip-ic {
-  grid-row: span 2; width: 38px; height: 38px; border-radius: 9px; display: grid; place-items: center;
-  background: var(--tint, var(--grey-tint)); color: var(--tone, var(--ink-2));
+  grid-row: span 2; width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center;
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--ink-2);
 }
+.cicon { display: block; transition: transform .2s ease; }
+a.strip-cell:hover .cicon { transform: translateY(-2px) scale(1.08); }
+.strip-ic.alive { background: var(--amber-tint); border-color: #f1d9a9; }
+.strip-ic.alive .cicon { animation: nudge 2.6s ease-in-out infinite; }
+.strip-ic.dim .cicon { filter: grayscale(1); opacity: 0.55; }
+@keyframes nudge { 0%, 70%, 100% { transform: rotate(0); } 76% { transform: rotate(-10deg); } 84% { transform: rotate(8deg); } 92% { transform: rotate(-4deg); } }
+@media (prefers-reduced-motion: reduce) { .strip-ic.alive .cicon { animation: none; } }
 .strip-label { font-size: 0.8rem; color: var(--muted); align-self: end; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .strip-value { font-family: var(--mono); font-size: 1.45rem; font-weight: 500; line-height: 1.2; align-self: start; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .strip-value.text { font-family: inherit; font-size: 0.98rem; font-weight: 600; padding-top: 3px; display: flex; align-items: center; gap: 6px; }
 .strip.compact .strip-cell { padding: 11px 14px; }
-.strip.compact .strip-ic { width: 32px; height: 32px; }
+.strip.compact .strip-ic { width: 38px; height: 38px; border-radius: 10px; }
 .strip.compact .strip-value { font-size: 1.15rem; }
 .tone-red { --tint: var(--red-tint); --tone: var(--red); }
 .tone-amber { --tint: var(--amber-tint); --tone: var(--amber); }

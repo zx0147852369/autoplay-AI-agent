@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_icons.html" import icon %}
+{% from "_icons.html" import icon, cicon %}
 {% block title %}แชทลูกค้า{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -13,10 +13,10 @@
 </div>
 
 <div class="strip compact">
-  <div class="strip-cell"><span class="strip-ic tone-grey">{{ icon('chat', 16) }}</span><span class="strip-label">แชททั้งหมด</span><span class="strip-value">{{ summary.total }}</span></div>
-  <div class="strip-cell"><span class="strip-ic tone-green">{{ icon('check', 16) }}</span><span class="strip-label">ติดตามอยู่</span><span class="strip-value">{{ summary.monitored }}</span></div>
-  <div class="strip-cell"><span class="strip-ic tone-blue">{{ icon('clock', 16) }}</span><span class="strip-label">ข้อความลูกค้าวันนี้</span><span class="strip-value">{{ summary.today }}</span></div>
-  <div class="strip-cell"><span class="strip-ic tone-amber">{{ icon('ticket', 16) }}</span><span class="strip-label">Ticket ค้าง</span><span class="strip-value">{{ summary.open_tickets }}</span></div>
+  <div class="strip-cell"><span class="strip-ic">{{ cicon('chat-multiple', 22) }}</span><span class="strip-label">แชททั้งหมด</span><span class="strip-value">{{ summary.total }}</span></div>
+  <div class="strip-cell"><span class="strip-ic">{{ cicon('person-available', 22) }}</span><span class="strip-label">ติดตามอยู่</span><span class="strip-value">{{ summary.monitored }}</span></div>
+  <div class="strip-cell"><span class="strip-ic">{{ cicon('calendar-clock', 22) }}</span><span class="strip-label">ข้อความลูกค้าวันนี้</span><span class="strip-value">{{ summary.today }}</span></div>
+  <div class="strip-cell"><span class="strip-ic">{{ cicon('clipboard-task', 22) }}</span><span class="strip-label">Ticket ค้าง</span><span class="strip-value">{{ summary.open_tickets }}</span></div>
 </div>
 
 {% if not connected %}

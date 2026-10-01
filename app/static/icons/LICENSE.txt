@@ -1,0 +1,11 @@
+ไอคอนสีในโฟลเดอร์นี้ใช้ได้ฟรี (รวมถึงเชิงพาณิชย์)
+
+- Fluent UI System Color Icons โดย Microsoft Corporation — MIT License
+  https://github.com/microsoft/fluentui-system-icons/blob/main/LICENSE
+  ไฟล์: add-circle, apps-list, calendar-clock, chat, chat-multiple, checkmark-circle, clipboard-task,
+        dismiss-circle, lock-closed, mail-clock, mail-multiple, person-available, send, warning, wrench
+
+- telegram.svg จาก SVG Logos โดย Gil Barbara — CC0 1.0 (สาธารณสมบัติ)
+  https://github.com/gilbarbara/logos
+
+ดาวน์โหลดผ่าน Iconify API (https://iconify.design)
