@@ -62,8 +62,10 @@ python main.py
 
 โปรเจกต์มี `railway.json` กำหนดคำสั่งเริ่ม `python main.py` ไว้แล้ว บน Railway ระบบจะรับการเชื่อมต่อที่ `0.0.0.0` และใช้ `PORT` ที่ Railway กำหนดให้อัตโนมัติ
 
-1. **Variables**: ใส่ `ANTHROPIC_API_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `SECRET_KEY` (สุ่มยาวๆ และห้ามเปลี่ยนภายหลัง ไม่งั้น session Telegram ที่เข้ารหัสไว้จะใช้ไม่ได้) และ `DATA_DIR=/data`
-2. **Volume**: สร้าง Volume แล้ว mount ที่ `/data` เพื่อเก็บฐานข้อมูล รูปภาพ และ session Telegram (ถ้าไม่มี Volume ข้อมูลจะหายทุกครั้งที่ deploy ใหม่)
+1. **Volume (สำคัญที่สุด)**: เปิด service → คลิกขวา (หรือกด ⌘K / Ctrl+K) → **Attach Volume** → Mount path `/data`
+   ระบบจะเก็บฐานข้อมูล ตั้งค่า รูปภาพ และ session Telegram ลง Volume ให้อัตโนมัติ (อ่านจาก `RAILWAY_VOLUME_MOUNT_PATH`)
+   ถ้าไม่มี Volume ทุกอย่างจะหายทุกครั้งที่ deploy ใหม่ และหน้าเว็บจะขึ้นแถบเตือนสีแดงให้ผู้ดูแลระบบเห็น
+2. **Variables**: ใส่ `ANTHROPIC_API_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD` (`SECRET_KEY` ไม่บังคับเมื่อมี Volume เพราะระบบสร้างและเก็บไว้ใน Volume ให้)
 3. **Networking**: กด Generate Domain เพื่อเปิดหน้าหลังบ้าน
 4. ใช้ **1 replica** เท่านั้น (บัญชี Telegram หนึ่งบัญชีควรเชื่อมต่อจากที่เดียว)
 

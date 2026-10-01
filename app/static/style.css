@@ -214,6 +214,7 @@ select {
 .note.error { border-color: var(--red); background: var(--red-tint); color: #7a1a12; }
 .note.warn { border-color: var(--amber); background: var(--amber-tint); color: #6b3d05; }
 .note ul { margin: 4px 0 0; padding-left: 18px; }
+.storage-warn { margin-bottom: 18px; }
 
 .muted { color: var(--muted); }
 .small { font-size: 0.84rem; }

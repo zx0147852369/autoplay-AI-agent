@@ -16,7 +16,7 @@ from sqlalchemy import func, select
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import ai_service, analyzer
-from .config import ADMIN_PASSWORD, ADMIN_USERNAME, DISPLAY_TZ, MEDIA_DIR, SECRET_KEY
+from .config import ADMIN_PASSWORD, ADMIN_USERNAME, DATA_DIR, DISPLAY_TZ, EPHEMERAL_STORAGE, MEDIA_DIR, SECRET_KEY
 from .database import (
     DEFAULT_SETTINGS,
     Chat,
@@ -72,6 +72,9 @@ def ensure_admin() -> None:
 async def lifespan(app: FastAPI):
     init_db()
     ensure_admin()
+    log.info("เก็บข้อมูลที่ %s", DATA_DIR)
+    if EPHEMERAL_STORAGE:
+        log.warning("ข้อมูลไม่ได้อยู่ใน Railway Volume: ตั้งค่าและข้อมูลทั้งหมดจะหายเมื่อ deploy ใหม่")
     telegram.on_message = analyzer.schedule
     startup = asyncio.create_task(telegram.start_from_db())
     yield
@@ -113,7 +116,7 @@ templates.env.filters["isolocal"] = _iso_localtime
 templates.env.filters["fromjson"] = lambda s: json.loads(s) if s else None
 templates.env.globals.update(
     CATEGORIES=ai_service.CATEGORIES, TICKET_STATUSES=TICKET_STATUSES, SEVERITY_LABELS=SEVERITY_LABELS,
-    REPLY_STATUSES=REPLY_STATUSES, ROLES=ROLES, ENV_ADMIN=ADMIN_USERNAME,
+    REPLY_STATUSES=REPLY_STATUSES, ROLES=ROLES, ENV_ADMIN=ADMIN_USERNAME, EPHEMERAL_STORAGE=EPHEMERAL_STORAGE,
 )
 
 

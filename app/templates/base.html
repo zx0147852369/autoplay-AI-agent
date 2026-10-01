@@ -52,6 +52,12 @@
     <a class="brand" href="/"><span class="brand-mark">S</span><span class="brand-text"><strong>Support Desk</strong></span></a>
   </header>
   <main class="content">
+    {% if EPHEMERAL_STORAGE and user.role == 'admin' %}
+      <div class="note error storage-warn">
+        <strong>ข้อมูลยังไม่ถูกเก็บถาวร</strong> ตั้งค่า ticket และการเชื่อมต่อ Telegram จะหายทุกครั้งที่ deploy ใหม่
+        แก้โดยเปิด Railway → service นี้ → คลิกขวา (หรือ ⌘K) เลือก <em>Attach Volume</em> → Mount path ใส่ <code>/data</code> แล้วรอ deploy ใหม่
+      </div>
+    {% endif %}
     {% block content %}{% endblock %}
   </main>
 </div>
