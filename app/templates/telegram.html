@@ -11,7 +11,7 @@
 {% if connected %}
 <section class="card">
   <div class="account-row">
-    <span class="avatar lg">{{ (account.me_name or '?')[:1] | upper }}</span>
+    <img class="avatar lg logo" src="/static/brand/avatar.png" width="44" height="44" alt="">
     <div class="grow">
       <strong>{{ account.me_name }}</strong>
       <div class="muted small"><span class="mono">{{ account.phone }}</span> · <span class="dot live"></span> ออนไลน์</div>

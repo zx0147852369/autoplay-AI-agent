@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=32">
+  <link rel="stylesheet" href="/static/style.css?v=33">
 </head>
 <body>
 {% if user %}
@@ -51,7 +51,7 @@
   {% endif %}
   <div class="sidebar-foot">
     <a class="user-chip" href="/account">
-      <span class="avatar">{{ user.username[:1] | upper }}</span>
+      <img class="avatar logo" src="/static/brand/avatar.png" width="30" height="30" alt="">
       <span class="user-meta"><strong>{{ user.username }}</strong><small>{{ ROLES[user.role] }}</small></span>
     </a>
     <form method="post" action="/logout"><button class="icon-btn" title="ออกจากระบบ" aria-label="ออกจากระบบ">{{ icon('logout', 17) }}</button></form>

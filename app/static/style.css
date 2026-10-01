@@ -690,3 +690,6 @@ button.danger-solid:hover { background: #96200f; border-color: #96200f; }
 .pick-pic:has(input:not(:checked)) .pick-mark { background: var(--surface); color: var(--muted); border: 1px solid var(--line-2); }
 .pick-pic:has(input:focus-visible) { box-shadow: var(--focus); }
 
+/* โลโก้แทนตัวอักษรในวงกลม (ผู้ใช้ / บัญชี Telegram) */
+img.avatar.logo { object-fit: cover; background: #fff; border: 1px solid var(--line); padding: 0; flex-shrink: 0; }
+
