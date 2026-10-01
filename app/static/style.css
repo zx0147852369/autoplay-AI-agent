@@ -36,7 +36,8 @@ body {
   min-height: 100vh;
   background: var(--paper);
   color: var(--ink);
-  font-family: "Anuphan", "IBM Plex Sans Thai", system-ui, sans-serif;
+  /* ฟอนต์หนังสือราชการ: Sarabun (TH Sarabun เวอร์ชันเว็บ) / TH Sarabun PSK ที่ติดตั้งในเครื่อง */
+  font-family: "Sarabun", "TH Sarabun PSK", "TH SarabunPSK", "TH Sarabun New", system-ui, sans-serif;
   font-size: 15px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
