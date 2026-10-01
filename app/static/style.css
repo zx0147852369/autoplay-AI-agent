@@ -453,6 +453,12 @@ a.strip-cell:hover { background: var(--surface-2); text-decoration: none; }
 @keyframes blink { 50% { opacity: 0.3; } }
 .ai-cell { display: flex; align-items: center; gap: 6px; }
 .icon-btn.sm { width: 26px; height: 26px; border: 1px solid var(--line-2); background: var(--surface); }
+.icon-btn.del:hover { color: var(--red); border-color: #e3b1ab; background: var(--red-tint); }
+.bulk-bar { display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: var(--red-tint); border-bottom: 1px solid #f1c5bf; font-size: 0.88rem; }
+.bulk-bar[hidden] { display: none; }
+.bulk-bar span { margin-right: auto; }
+.grid-table input[type="checkbox"] { width: 16px; height: 16px; padding: 0; accent-color: var(--pine); cursor: pointer; }
+.delete-zone { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); }
 
 /* ---------- toolbar / checklist ---------- */
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); }

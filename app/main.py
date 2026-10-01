@@ -144,7 +144,9 @@ async def _need_login(request: Request, exc: NeedLogin):
 @app.exception_handler(Forbidden)
 async def _forbidden(request: Request, exc: Forbidden):
     flash(request, "คุณไม่มีสิทธิ์เข้าถึงหน้านี้", "error")
-    return RedirectResponse("/tickets", status_code=303)
+    # ทุกบทบาทเข้าหน้า Tickets ได้ แต่กันวนซ้ำไว้เผื่อหน้า Tickets เองไม่มีสิทธิ์
+    target = "/account" if request.url.path.startswith("/tickets") else "/tickets"
+    return RedirectResponse(target, status_code=303)
 
 
 def current_user(request: Request, *roles: str) -> User:
@@ -571,7 +573,7 @@ async def replies_regenerate(request: Request, reply_id: int, instruction: str =
 # ---------------------------------------------------------------- tickets
 @app.get("/tickets")
 async def tickets_page(request: Request, status: str = "active", category: str = "", q: str = ""):
-    user = current_user(request, "programmer")
+    user = current_user(request, "programmer", "agent")
     q = q.strip()
     with SessionLocal() as db:
         query = select(Ticket).order_by(Ticket.created_at.desc()).limit(300)
@@ -599,7 +601,7 @@ async def tickets_page(request: Request, status: str = "active", category: str =
 
 @app.get("/tickets/{ticket_id}")
 async def ticket_detail(request: Request, ticket_id: int):
-    user = current_user(request, "programmer")
+    user = current_user(request, "programmer", "agent")
     with SessionLocal() as db:
         ticket = db.get(Ticket, ticket_id)
         if not ticket:
@@ -629,7 +631,7 @@ async def ticket_post_dev(request: Request, ticket_id: int):
 @app.post("/tickets/{ticket_id}/update")
 async def ticket_update(request: Request, ticket_id: int, status: str = Form(...), severity: str = Form(...),
                         assignee_id: str = Form(""), website_url: str = Form(""), title: str = Form(...)):
-    user = current_user(request, "programmer")
+    user = current_user(request, "programmer", "agent")
     with SessionLocal() as db:
         ticket = db.get(Ticket, ticket_id)
         if ticket:
@@ -661,9 +663,53 @@ async def ticket_update(request: Request, ticket_id: int, status: str = Form(...
 
 
 
+def delete_tickets(db, ticket_ids: list[int]) -> int:
+    """ลบ ticket พร้อมประวัติ รูปแนบ และลิงก์ในกลุ่มโปรแกรมเมอร์
+    ข้อความถึงลูกค้าที่ผูกกับ ticket: ร่างแจ้งความคืบหน้าที่ยังไม่ส่งจะถูกยกเลิก ส่วนข้อความอื่นยังเก็บไว้เป็นประวัติ
+    (ไฟล์รูปไม่ลบ เพราะยังใช้แสดงในประวัติแชท)"""
+    deleted = 0
+    for ticket_id in ticket_ids:
+        ticket = db.get(Ticket, ticket_id)
+        if not ticket:
+            continue
+        for r in db.scalars(select(Reply).where(Reply.ticket_id == ticket_id)):
+            if r.kind != "ai" and r.status in ("pending", "failed"):
+                r.status = "superseded"
+            r.ticket_id = None
+        for link in db.scalars(select(TicketLink).where(TicketLink.ticket_id == ticket_id)):
+            db.delete(link)
+        db.delete(ticket)
+        deleted += 1
+    db.commit()
+    return deleted
+
+
+@app.post("/tickets/{ticket_id}/delete")
+async def ticket_delete(request: Request, ticket_id: int):
+    current_user(request, "admin")
+    with SessionLocal() as db:
+        n = delete_tickets(db, [ticket_id])
+    flash(request, f"ลบ ticket #{ticket_id} แล้ว" if n else "ไม่พบ ticket นี้", "ok" if n else "error")
+    return back("/tickets")
+
+
+@app.post("/tickets/delete")
+async def tickets_bulk_delete(request: Request):
+    current_user(request, "admin")
+    form = await request.form()
+    ids = [int(v) for v in form.getlist("ids") if str(v).isdigit()]
+    if not ids:
+        flash(request, "ยังไม่ได้เลือก ticket", "error")
+        return back("/tickets")
+    with SessionLocal() as db:
+        n = delete_tickets(db, ids)
+    flash(request, f"ลบ ticket แล้ว {n} รายการ")
+    return back("/tickets")
+
+
 @app.post("/tickets/{ticket_id}/note")
 async def ticket_note(request: Request, ticket_id: int, body: str = Form(...)):
-    user = current_user(request, "programmer")
+    user = current_user(request, "programmer", "agent")
     if body.strip():
         with SessionLocal() as db:
             if db.get(Ticket, ticket_id):
@@ -675,7 +721,7 @@ async def ticket_note(request: Request, ticket_id: int, body: str = Form(...)):
 
 @app.post("/tickets/{ticket_id}/check-site")
 async def ticket_check_site(request: Request, ticket_id: int):
-    current_user(request, "programmer")
+    current_user(request, "programmer", "agent")
     result = await analyzer.run_site_check(ticket_id)
     if result is None:
         flash(request, "ticket นี้ไม่มีลิงก์เว็บไซต์", "error")

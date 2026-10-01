@@ -1,6 +1,23 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon %}
 {% block title %}Tickets{% endblock %}
+{% block scripts %}
+<script>
+  function updatePicks() {
+    const n = document.querySelectorAll('.pick:checked').length;
+    const bar = document.getElementById('bulkForm');
+    if (!bar) return;
+    bar.hidden = n === 0;
+    document.getElementById('pickCount').textContent = n;
+    const all = document.querySelector('.pick-all');
+    if (all) all.checked = n > 0 && n === document.querySelectorAll('.pick').length;
+  }
+  function pickAll(on) {
+    document.querySelectorAll('.pick').forEach(c => c.checked = on);
+    updatePicks();
+  }
+</script>
+{% endblock %}
 {% block content %}
 <div class="page-head">
   <div>
@@ -33,15 +50,27 @@
     <button>ค้นหา</button>
     {% if q or category %}<a class="btn ghost" href="/tickets?status={{ status }}">ล้างตัวกรอง</a>{% endif %}
   </form>
+  {% set can_delete = user.role == 'admin' %}
+  {% if can_delete %}
+  <form method="post" action="/tickets/delete" id="bulkForm" class="bulk-bar" hidden
+        onsubmit="return confirm('ลบ ticket ที่เลือก ' + document.querySelectorAll('.pick:checked').length + ' รายการ? ลบแล้วกู้คืนไม่ได้')">
+    <span><b id="pickCount">0</b> รายการที่เลือก</span>
+    <button class="danger sm">{{ icon('trash', 13) }} ลบที่เลือก</button>
+    <button type="button" class="ghost sm" onclick="pickAll(false)">ยกเลิก</button>
+  </form>
+  {% endif %}
   <div class="table-wrap">
   <table class="grid-table">
     <thead><tr>
+      {% if can_delete %}<th class="shrink center" onclick="event.stopPropagation()"><input type="checkbox" class="pick-all" aria-label="เลือกทั้งหมด" onchange="pickAll(this.checked)"></th>{% endif %}
       <th class="shrink">#</th><th class="col-title">เรื่อง</th><th class="col-opt">ประเภท</th><th>ลูกค้า</th>
       <th class="shrink">ความรุนแรง</th><th class="shrink">สถานะ</th><th class="shrink col-opt">ผู้รับผิดชอบ</th><th class="shrink">เปิดเมื่อ</th>
+      {% if can_delete %}<th class="shrink"></th>{% endif %}
     </tr></thead>
     <tbody>
     {% for t in tickets %}
       <tr onclick="location.href='/tickets/{{ t.id }}'" style="cursor:pointer">
+        {% if can_delete %}<td class="shrink center" onclick="event.stopPropagation()"><input type="checkbox" class="pick" name="ids" value="{{ t.id }}" form="bulkForm" aria-label="เลือก ticket #{{ t.id }}" onchange="updatePicks()"></td>{% endif %}
         <td class="id">{{ t.id }}</td>
         <td class="col-title"><a class="title-link" href="/tickets/{{ t.id }}">{{ t.title }}</a>
           {% set sc = t.site_check | fromjson %}
@@ -52,9 +81,16 @@
         <td class="shrink"><span class="tag st-{{ t.status }}">{{ TICKET_STATUSES[t.status] }}</span></td>
         <td class="shrink small col-opt">{{ users.get(t.assignee_id) or '—' }}</td>
         <td class="when">{{ t.created_at | localtime }}</td>
+        {% if can_delete %}
+        <td class="shrink" onclick="event.stopPropagation()">
+          <form method="post" action="/tickets/{{ t.id }}/delete" onsubmit="return confirm({{ ('ลบ ticket #' ~ t.id ~ ' ' ~ t.title ~ '? ลบแล้วกู้คืนไม่ได้') | tojson | forceescape }})">
+            <button class="icon-btn sm del" title="ลบ ticket" aria-label="ลบ ticket #{{ t.id }}">{{ icon('trash', 14) }}</button>
+          </form>
+        </td>
+        {% endif %}
       </tr>
     {% else %}
-      <tr class="empty-row"><td colspan="8">{{ icon('ticket', 24) }}
+      <tr class="empty-row"><td colspan="{{ 10 if can_delete else 8 }}">{{ icon('ticket', 24) }}
         {% if q or category %}<strong>ไม่พบ ticket ที่ตรงกับการค้นหา</strong>ลองเปลี่ยนคำค้นหรือล้างตัวกรอง
         {% else %}<strong>ไม่มี ticket ในหมวดนี้</strong>เมื่อลูกค้าแจ้งปัญหาในแชทที่ติดตาม ระบบจะเปิด ticket ให้อัตโนมัติ{% endif %}
       </td></tr>

@@ -95,6 +95,12 @@
         <button class="primary block">บันทึก</button>
         <p class="hint" style="margin:0">เมื่อเปลี่ยนสถานะเป็น "แก้ไขแล้ว" ระบบจะร่างข้อความแจ้งลูกค้าว่าแก้ไขเรียบร้อย ให้อนุมัติก่อนส่ง</p>
       </form>
+      {% if user.role == 'admin' %}
+      <form method="post" action="/tickets/{{ ticket.id }}/delete" class="delete-zone"
+            onsubmit="return confirm({{ ('ลบ ticket #' ~ ticket.id ~ ' ' ~ ticket.title ~ '? ประวัติและรูปแนบของ ticket นี้จะถูกลบ กู้คืนไม่ได้') | tojson | forceescape }})">
+        <button class="danger sm block">{{ icon('trash', 13) }} ลบ ticket นี้</button>
+      </form>
+      {% endif %}
     </section>
     <section class="card">
       <div class="card-head"><h2>กลุ่มโปรแกรมเมอร์</h2></div>
