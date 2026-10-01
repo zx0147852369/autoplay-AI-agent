@@ -19,7 +19,7 @@
 {% if questions %}
 <section class="panel">
   <div class="panel-head">
-    <h2>{{ icon('alert', 16) }} คำถามที่ลูกค้าถามแต่ยังไม่มีในคู่มือ</h2>
+    <h2>{{ cicon('chat-bubbles-question', 20) }} คำถามที่ลูกค้าถามแต่ยังไม่มีในคู่มือ</h2>
     <span class="count">AI ตอบลูกค้าว่าขอตรวจสอบข้อมูลก่อน · เพิ่มคู่มือเพื่อให้ตอบได้ครั้งต่อไป</span>
   </div>
   <div class="table-wrap">
@@ -48,7 +48,7 @@
 
 <section class="panel">
   <div class="panel-head">
-    <h2>{{ icon('note', 16) }} คู่มือ</h2>
+    <h2>{{ cicon('book-open', 20) }} คู่มือ</h2>
     <form method="get" action="/guides" class="row" style="flex-wrap:nowrap">
       <input name="q" value="{{ q }}" placeholder="ค้นหาหัวข้อ คำค้น หรือคำตอบ" style="min-width:260px">
       <button>ค้นหา</button>

@@ -52,7 +52,7 @@
 {% set qi = quota_info %}
 <section class="panel" id="quota">
   <div class="panel-head">
-    <h2>{{ icon('activity', 16) }} โควตา Gemini วันนี้{% if qi.key_count > 1 %} <span class="tag st-resolved">{{ qi.key_count }} คีย์ · สลับอัตโนมัติ</span>{% endif %}</h2>
+    <h2>{{ cicon('gauge', 20) }} โควตา Gemini วันนี้{% if qi.key_count > 1 %} <span class="tag st-resolved">{{ qi.key_count }} คีย์ · สลับอัตโนมัติ</span>{% endif %}</h2>
     <span class="count">รีเซ็ตใน {{ qi.reset_in }} · เวลา {{ qi.reset_at | localtime_hm }} น.</span>
   </div>
   <div class="table-wrap">
@@ -112,7 +112,7 @@
 {% if done < setup | length %}
 <section class="panel">
   <div class="panel-head">
-    <h2>{{ icon('check-circle', 16) }} เริ่มต้นใช้งาน</h2>
+    <h2>{{ cicon('checkmark-circle', 20) }} เริ่มต้นใช้งาน</h2>
     <span class="progress">เสร็จแล้ว {{ done }}/{{ setup | length }}</span>
   </div>
   <table class="grid-table checklist">
@@ -130,7 +130,7 @@
 <div class="grid-2">
   <section class="panel">
     <div class="panel-head">
-      <h2>{{ icon('inbox', 16) }} รออนุมัติล่าสุด</h2>
+      <h2>{{ cicon('mail-clock', 20) }} รออนุมัติล่าสุด</h2>
       <a href="/replies" class="small">ดูทั้งหมด</a>
     </div>
     <div class="table-wrap">
@@ -152,7 +152,7 @@
   </section>
 
   <section class="panel">
-    <div class="panel-head"><h2>{{ icon('activity', 16) }} สถานะระบบ</h2></div>
+    <div class="panel-head"><h2>{{ cicon('data-trending', 20) }} สถานะระบบ</h2></div>
     <table class="grid-table">
       <thead><tr><th>รายการ</th><th class="shrink">สถานะ</th><th>รายละเอียด</th></tr></thead>
       <tbody>
@@ -171,7 +171,7 @@
 <div class="grid-2">
   <section class="panel">
     <div class="panel-head">
-      <h2>{{ icon('ticket', 16) }} Ticket ล่าสุด</h2>
+      <h2>{{ cicon('clipboard-task', 20) }} Ticket ล่าสุด</h2>
       <a href="/tickets?status=all" class="small">ดูทั้งหมด</a>
     </div>
     <div class="table-wrap">
@@ -194,7 +194,7 @@
   </section>
 
   <section class="panel">
-    <div class="panel-head"><h2>{{ icon('alert', 16) }} ปัญหาค้างตามประเภท</h2></div>
+    <div class="panel-head"><h2>{{ cicon('warning', 20) }} ปัญหาค้างตามประเภท</h2></div>
     {% set top = (open_by_cat.values() | max) if open_by_cat else 1 %}
     <table class="grid-table">
       <thead><tr><th>ประเภท</th><th class="shrink center">จำนวน</th><th>สัดส่วน</th></tr></thead>

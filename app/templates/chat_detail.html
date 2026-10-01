@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_icons.html" import icon %}
+{% from "_icons.html" import icon, cicon %}
 {% block title %}{{ chat.title }}{% endblock %}
 {% block content %}
 <a class="crumb" href="/chats">{{ icon('arrow-left', 14) }} แชทลูกค้า</a>
@@ -22,7 +22,7 @@
 {% endif %}
 <section class="panel chat-panel">
   <div class="panel-head">
-    <h2>{{ icon('chat', 16) }} บทสนทนา</h2>
+    <h2>{{ cicon('chat', 20) }} บทสนทนา</h2>
     <div class="chat-legend">
       <span><i class="lg-in"></i> ลูกค้า{% if people %} {{ people }} คน{% endif %}</span>
       <span><i class="lg-out"></i> ทีมงาน</span>

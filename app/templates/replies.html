@@ -171,7 +171,7 @@
 {% else %}
   <section class="panel">
     <div class="panel-head">
-      <h2>{{ icon('activity', 16) }} {% for key, label, ic, tone in tabs if key == status %}{{ label }}{% endfor %}</h2>
+      <h2>{{ cicon('history', 20) }} {% for key, label, ic, tone in tabs if key == status %}{{ label }}{% endfor %}</h2>
       <span class="count">{{ replies | length }} รายการ{% if replies | length == 100 %} (แสดงล่าสุด 100){% endif %}</span>
     </div>
     <div class="table-wrap">
