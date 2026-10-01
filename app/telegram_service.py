@@ -247,15 +247,16 @@ class TelegramService:
         sent = sent if isinstance(sent, list) else [sent]
         return [m.id for m in sent]
 
-    async def send_reply(self, chat_id: int, text: str, reply_to: int | None) -> None:
+    async def send_reply(self, chat_id: int, text: str, reply_to: int | None) -> int | None:
         entity = await self._entity(chat_id)
         try:
-            await self.client.send_message(entity, text, reply_to=reply_to or None)
+            msg = await self.client.send_message(entity, text, reply_to=reply_to or None)
         except RPCError as e:
             # ข้อความลูกค้าที่จะตอบกลับถูกลบไปแล้ว -> ส่งเป็นข้อความปกติแทน
             if not reply_to or "REPLY" not in str(e).upper():
                 raise
-            await self.client.send_message(entity, text)
+            msg = await self.client.send_message(entity, text)
+        return getattr(msg, "id", None)
 
     async def backfill(self, chat_id: int, limit: int = 20, unanswered_hours: int = 24) -> int:
         """ดึงข้อความล่าสุดของแชทที่ยังไม่มีในระบบ

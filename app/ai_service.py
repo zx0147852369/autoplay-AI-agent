@@ -5,7 +5,7 @@ import json
 import re
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timezone
 from pathlib import Path
 
@@ -131,6 +131,7 @@ class Analysis:
     question: str = ""  # คำถามการใช้งานหลังบ้าน (ไม่ใช่การแจ้งปัญหา)
     guide_id: int = 0
     answered_from_guide: bool = False
+    media: list = field(default_factory=list)  # รูปที่จะส่งพร้อมคำตอบ (ระบบใส่เอง ไม่ใช่จาก AI)
 
     @property
     def is_issue(self) -> bool:
@@ -178,7 +179,10 @@ def _guides_text(guides: list, query: str, budget: int = 24000) -> str:
 
     blocks, used = [], 0
     for g in sorted(guides, key=lambda g: (-score(g), g.id)):
-        block = f"[คู่มือ #{g.id}] {g.title}\n" + (f"คำค้น: {g.keywords}\n" if g.keywords else "") + f"คำตอบ:\n{g.answer}"
+        pics = len(json.loads(g.images or "[]")) if getattr(g, "images", "") else 0
+        block = (f"[คู่มือ #{g.id}] {g.title}\n" + (f"คำค้น: {g.keywords}\n" if g.keywords else "")
+                 + (f"(มีรูปประกอบ {pics} รูป ระบบจะแนบให้อัตโนมัติ ไม่ต้องเขียนลิงก์รูป)\n" if pics else "")
+                 + f"คำตอบ:\n{g.answer}")
         if used + len(block) > budget and blocks:
             break
         blocks.append(block)

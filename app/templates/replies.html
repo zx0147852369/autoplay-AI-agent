@@ -128,9 +128,21 @@
         <form method="post" action="/replies/{{ r.id }}/approve" class="stack composer" id="approve-{{ r.id }}">
           <label class="field">ข้อความที่จะส่ง
             <textarea name="text" rows="5" required>{{ r.final_text }}</textarea></label>
+          {% set pics = (r.media | fromjson) or [] %}
+          {% if pics %}
+          <div class="field">
+            <span>รูปที่จะส่งพร้อมข้อความ ({{ pics | length }}) <span class="hint">เอาติ๊กออกถ้าไม่ต้องการส่งรูปนั้น</span></span>
+            <div class="reply-pics">
+              {% for p in pics %}
+                <label class="pick-pic"><input type="checkbox" name="media" value="{{ p }}" checked>
+                  <img src="/media/{{ p }}" alt="รูปประกอบ" loading="lazy"><span class="pick-mark">{{ icon('check', 12) }}</span></label>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
           <div class="actions end">
             <button class="go" data-confirm-title="ส่งข้อความถึงลูกค้า?"
-              data-confirm="ข้อความด้านล่างจะถูกส่งในแชท {{ chat_titles.get(r.chat_id, r.chat_id) }} ทันที" data-confirm-ok="ส่งข้อความ"
+              data-confirm="ข้อความด้านล่างจะถูกส่งในแชท {{ chat_titles.get(r.chat_id, r.chat_id) }} ทันที{{ ' พร้อมรูปที่เลือก' if pics }}" data-confirm-ok="ส่งข้อความ"
               data-confirm-tone="send" data-confirm-preview="#approve-{{ r.id }} textarea">{{ icon('send', 15) }} อนุมัติและส่ง</button>
           </div>
         </form>

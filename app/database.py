@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 
 from sqlalchemy import (
@@ -199,10 +200,18 @@ class Guide(Base):
     title: Mapped[str] = mapped_column(String(255))  # คำถาม / หัวข้อ
     keywords: Mapped[str] = mapped_column(Text, default="")  # คำที่ลูกค้ามักใช้ถาม คั่นด้วยจุลภาค
     answer: Mapped[str] = mapped_column(Text, default="")  # คำตอบ / ขั้นตอน / ลิงก์คู่มือ
+    images: Mapped[str] = mapped_column(Text, default="", server_default="")  # JSON รายชื่อไฟล์รูปประกอบใน MEDIA_DIR
     used_count: Mapped[int] = mapped_column(Integer, default=0)
     updated_by: Mapped[str] = mapped_column(String(64), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+def guide_images(guide) -> list[str]:
+    try:
+        return [x for x in json.loads(guide.images or "[]") if isinstance(x, str)]
+    except (ValueError, TypeError):
+        return []
 
 
 class GuideQuestion(Base):
@@ -230,6 +239,7 @@ class Reply(Base):
     ai_text: Mapped[str] = mapped_column(Text, default="")
     final_text: Mapped[str] = mapped_column(Text, default="")
     note: Mapped[str] = mapped_column(Text, default="")  # เหตุผล/บันทึกจาก AI ถึงแอดมิน
+    media: Mapped[str] = mapped_column(Text, default="", server_default="")  # JSON รูปที่จะส่งพร้อมข้อความ (เช่น รูปจากคู่มือ)
     # ai = ร่างคำตอบจาก AI, resolved = แจ้งลูกค้าว่าแก้ไขปัญหาเรียบร้อยแล้ว
     kind: Mapped[str] = mapped_column(String(16), default="ai", server_default="ai")
     # pending / sending / sent / rejected / failed / superseded

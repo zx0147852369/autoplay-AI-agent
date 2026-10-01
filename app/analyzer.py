@@ -14,7 +14,7 @@ from . import ai_service, dev_bridge
 from .telegram_service import STICKER_TEXT
 from .database import (
     Chat, Guide, GuideQuestion, Message, Reply, SessionLocal, Ticket, TicketAttachment, TicketEvent, get_settings,
-    int_setting, utcnow,
+    guide_images, int_setting, utcnow,
 )
 from urllib.parse import urlparse
 
@@ -198,6 +198,9 @@ def _handle_question(chat_id: int, result: ai_service.Analysis, guides: list[Gui
         if guide:
             db.get(Guide, guide.id).used_count += 1
             note = f"ตอบจากคู่มือ #{guide.id}: {guide.title}"
+            result.media = guide_images(guide)
+            if result.media:
+                note += f" (แนบรูป {len(result.media)} รูป)"
             if not (result.needs_reply and result.reply_text.strip()):
                 result.needs_reply, result.reply_text = True, guide.answer
         else:
@@ -328,6 +331,7 @@ def _save_draft(chat_id: int, result: ai_service.Analysis, new_messages: list[Me
             final_text=result.reply_text.strip(),
             note=result.note_for_admin,
             ticket_id=ticket_id,
+            media=json.dumps(result.media) if result.media else "",
         ))
         db.commit()
 

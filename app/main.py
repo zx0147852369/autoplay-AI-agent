@@ -4,12 +4,13 @@ import logging
 import os
 import sys
 import time
+import uuid
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -23,6 +24,7 @@ from .database import (
     Chat,
     Guide,
     GuideQuestion,
+    guide_images,
     Message,
     Reply,
     SessionLocal,
@@ -549,7 +551,7 @@ def _load_pending(reply_id: int) -> Reply | None:
 
 
 @app.post("/replies/{reply_id}/approve")
-async def replies_approve(request: Request, reply_id: int, text: str = Form(...)):
+async def replies_approve(request: Request, reply_id: int, text: str = Form(...), media: list[str] = Form([])):
     user = current_user(request, "agent")
     if not _load_pending(reply_id):
         flash(request, "ข้อความนี้ถูกดำเนินการไปแล้ว", "error")
@@ -560,14 +562,27 @@ async def replies_approve(request: Request, reply_id: int, text: str = Form(...)
         return back("/replies")
     with SessionLocal() as db:
         reply = db.get(Reply, reply_id)
+        allowed = json.loads(reply.media or "[]")
+        photos = [p for p in allowed if p in media]  # เฉพาะรูปที่ยังติ๊กไว้
         reply.status, reply.final_text = "sending", text
+        reply.media = json.dumps(photos) if photos else ""
         reply.decided_by, reply.decided_at = user.username, utcnow()
         db.commit()
         chat_id, reply_to = reply.chat_id, reply.reply_to_tg_id
     try:
-        await telegram.send_reply(chat_id, text, reply_to)
+        sent_id = await telegram.send_reply(chat_id, text, reply_to)
         status, error = "sent", ""
-        flash(request, "อนุมัติและส่งข้อความแล้ว")
+        files = [str(MEDIA_DIR / p) for p in photos if (MEDIA_DIR / p).is_file()]
+        if files:
+            try:
+                await telegram.send_files(chat_id, files, reply_to=sent_id)
+            except Exception as e:  # noqa: BLE001 - ข้อความส่งแล้ว แจ้งเฉพาะรูปที่ส่งไม่ได้
+                log.exception("send reply photos failed")
+                error = f"ส่งข้อความแล้ว แต่ส่งรูปไม่สำเร็จ: {e}"
+        if error:
+            flash(request, error, "error")
+        else:
+            flash(request, "อนุมัติและส่งข้อความแล้ว" + (f" พร้อมรูป {len(files)} รูป" if files else ""))
     except TelegramLoginError as e:
         status, error = "failed", str(e)
         flash(request, f"ส่งข้อความไม่สำเร็จ: {e}", "error")
@@ -911,17 +926,61 @@ async def guides_page(request: Request, q: str = ""):
         total = db.scalar(select(func.count(Guide.id)))
         used = db.scalar(select(func.coalesce(func.sum(Guide.used_count), 0)))
         chat_titles = {c.id: c.title for c in db.scalars(select(Chat))}
+        all_guides = {g.id: {"title": g.title, "keywords": g.keywords, "answer": g.answer, "images": guide_images(g)}
+                      for g in db.scalars(select(Guide))}
     return render(request, "guides.html", user, guides=guides, questions=questions, q=q, total=total, used=used,
-                  chat_titles=chat_titles)
+                  chat_titles=chat_titles, guide_data=all_guides, max_images=GUIDE_MAX_IMAGES)
 
 
 @app.get("/guides/new")
 async def guide_new(request: Request, question_id: int = 0):
-    user = current_user(request, "agent")
-    with SessionLocal() as db:
-        question = db.get(GuideQuestion, question_id) if question_id else None
-    guide = Guide(title=question.question if question else "", keywords="", answer="")
-    return render(request, "guide_edit.html", user, guide=guide, question=question)
+    current_user(request, "agent")
+    return back("/guides?new=1" + (f"&question_id={question_id}" if question_id else ""))
+
+
+GUIDE_MAX_IMAGES = 6
+GUIDE_MAX_BYTES = 8 * 1024 * 1024
+IMAGE_SIGNATURES = {b"\xff\xd8\xff": ".jpg", b"\x89PNG": ".png", b"GIF8": ".gif"}
+
+
+def _image_ext(data: bytes) -> str:
+    for sig, ext in IMAGE_SIGNATURES.items():
+        if data.startswith(sig):
+            return ext
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return ".webp"
+    return ""
+
+
+async def _save_guide_images(files: list[UploadFile], room: int) -> tuple[list[str], list[str]]:
+    """บันทึกรูปที่อัปโหลด คืนค่า (ชื่อไฟล์ที่บันทึก, ข้อผิดพลาด)"""
+    saved, errors = [], []
+    for f in files:
+        if not f or not f.filename:
+            continue
+        if len(saved) >= room:
+            errors.append(f"แนบรูปได้สูงสุด {GUIDE_MAX_IMAGES} รูป ข้าม {f.filename}")
+            continue
+        data = await f.read(GUIDE_MAX_BYTES + 1)
+        if len(data) > GUIDE_MAX_BYTES:
+            errors.append(f"{f.filename} ใหญ่เกิน 8 MB")
+            continue
+        ext = _image_ext(data)
+        if not ext:
+            errors.append(f"{f.filename} ไม่ใช่ไฟล์รูป (รองรับ JPG PNG GIF WEBP)")
+            continue
+        name = f"guide_{uuid.uuid4().hex[:16]}{ext}"
+        (MEDIA_DIR / name).write_bytes(data)
+        saved.append(name)
+    return saved, errors
+
+
+def _drop_guide_files(db, names: list[str]) -> None:
+    """ลบไฟล์รูปคู่มือที่ไม่ใช้แล้ว (ยกเว้นรูปที่ร่างคำตอบที่รออนุมัติยังจะส่ง)"""
+    pending = " ".join(db.scalars(select(Reply.media).where(Reply.status.in_(("pending", "failed")), Reply.media != "")))
+    for name in names:
+        if name.startswith("guide_") and name not in pending:
+            (MEDIA_DIR / name).unlink(missing_ok=True)
 
 
 def _clean_guide(title: str, keywords: str, answer: str) -> tuple[str, str, str]:
@@ -934,49 +993,60 @@ def _clean_guide(title: str, keywords: str, answer: str) -> tuple[str, str, str]
 
 @app.post("/guides/new")
 async def guide_create(request: Request, title: str = Form(""), keywords: str = Form(""), answer: str = Form(""),
-                       question_id: int = Form(0)):
+                       question_id: int = Form(0), images: list[UploadFile] = File([])):
     user = current_user(request, "agent")
     try:
         title, keywords, answer = _clean_guide(title, keywords, answer)
     except ValueError as e:
         flash(request, str(e), "error")
-        return back("/guides/new" + (f"?question_id={question_id}" if question_id else ""))
+        return back("/guides?new=1" + (f"&question_id={question_id}" if question_id else ""))
+    saved, errors = await _save_guide_images(images, GUIDE_MAX_IMAGES)
     with SessionLocal() as db:
-        guide = Guide(title=title, keywords=keywords, answer=answer, updated_by=user.username)
+        guide = Guide(title=title, keywords=keywords, answer=answer, updated_by=user.username,
+                      images=json.dumps(saved) if saved else "")
         db.add(guide)
         db.flush()
         if question_id and (question := db.get(GuideQuestion, question_id)):
             question.status, question.guide_id = "added", guide.id
         db.commit()
-    flash(request, f"เพิ่มคู่มือ \"{title}\" แล้ว AI จะใช้ตอบลูกค้าตั้งแต่ข้อความถัดไป")
+    for err in errors:
+        flash(request, err, "error")
+    flash(request, f"เพิ่มคู่มือ \"{title}\" แล้ว" + (f" พร้อมรูป {len(saved)} รูป" if saved else "")
+          + " AI จะใช้ตอบลูกค้าตั้งแต่ข้อความถัดไป")
     return back("/guides")
 
 
 @app.get("/guides/{guide_id}")
 async def guide_edit(request: Request, guide_id: int):
-    user = current_user(request, "agent")
-    with SessionLocal() as db:
-        guide = db.get(Guide, guide_id)
-    if not guide:
-        return back("/guides")
-    return render(request, "guide_edit.html", user, guide=guide, question=None)
+    current_user(request, "agent")
+    return back(f"/guides?edit={guide_id}")
 
 
 @app.post("/guides/{guide_id}")
 async def guide_update(request: Request, guide_id: int, title: str = Form(""), keywords: str = Form(""),
-                       answer: str = Form("")):
+                       answer: str = Form(""), remove_images: list[str] = Form([]),
+                       images: list[UploadFile] = File([])):
     user = current_user(request, "agent")
     try:
         title, keywords, answer = _clean_guide(title, keywords, answer)
     except ValueError as e:
         flash(request, str(e), "error")
-        return back(f"/guides/{guide_id}")
+        return back(f"/guides?edit={guide_id}")
     with SessionLocal() as db:
         guide = db.get(Guide, guide_id)
-        if guide:
-            guide.title, guide.keywords, guide.answer = title, keywords, answer
-            guide.updated_by, guide.updated_at = user.username, utcnow()
-            db.commit()
+        if not guide:
+            return back("/guides")
+        current = guide_images(guide)
+        removed = [p for p in current if p in remove_images]
+        kept = [p for p in current if p not in removed]
+        saved, errors = await _save_guide_images(images, GUIDE_MAX_IMAGES - len(kept))
+        guide.title, guide.keywords, guide.answer = title, keywords, answer
+        guide.images = json.dumps(kept + saved) if kept or saved else ""
+        guide.updated_by, guide.updated_at = user.username, utcnow()
+        db.commit()
+        _drop_guide_files(db, removed)
+    for err in errors:
+        flash(request, err, "error")
     flash(request, "บันทึกคู่มือแล้ว")
     return back("/guides")
 
@@ -986,8 +1056,10 @@ async def guide_delete(request: Request, guide_id: int):
     current_user(request, "agent")
     with SessionLocal() as db:
         if guide := db.get(Guide, guide_id):
+            files = guide_images(guide)
             db.delete(guide)
             db.commit()
+            _drop_guide_files(db, files)
             flash(request, f"ลบคู่มือ \"{guide.title}\" แล้ว")
     return back("/guides")
 
