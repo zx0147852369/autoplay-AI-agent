@@ -164,7 +164,7 @@ class Reply(Base):
 
 
 DEFAULT_SETTINGS = {
-    "ai_model": "claude-opus-5-5",
+    "ai_model": "gemini-3.8-flash",
     "ai_effort": "medium",
     "business_context": (
         "เราเป็นทีมซัพพอร์ตของเว็บไซต์ให้บริการลูกค้า ลูกค้าจะทักเข้ามาในกลุ่ม Telegram "

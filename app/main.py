@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 import sys
 import time
 from collections import defaultdict, deque
@@ -117,6 +118,7 @@ templates.env.filters["fromjson"] = lambda s: json.loads(s) if s else None
 templates.env.globals.update(
     CATEGORIES=ai_service.CATEGORIES, TICKET_STATUSES=TICKET_STATUSES, SEVERITY_LABELS=SEVERITY_LABELS,
     REPLY_STATUSES=REPLY_STATUSES, ROLES=ROLES, ENV_ADMIN=ADMIN_USERNAME, EPHEMERAL_STORAGE=EPHEMERAL_STORAGE,
+    GEMINI_MODELS=ai_service.GEMINI_MODELS, CLAUDE_MODELS=ai_service.CLAUDE_MODELS,
 )
 
 
@@ -562,7 +564,9 @@ async def settings_page(request: Request):
     with SessionLocal() as db:
         settings = get_settings(db)
         users = list(db.scalars(select(User).order_by(User.username)))
-    return render(request, "settings.html", user, settings=settings, users=users)
+    return render(request, "settings.html", user, settings=settings, users=users,
+                  has_gemini_key=bool(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")),
+                  has_claude_key=bool(os.getenv("ANTHROPIC_API_KEY")))
 
 
 @app.post("/settings")
@@ -573,6 +577,10 @@ async def settings_save(request: Request):
         for key in DEFAULT_SETTINGS:
             if key in ("auto_draft", "auto_ticket", "site_check"):
                 value = "1" if form.get(key) else "0"
+            elif key == "ai_model":
+                value = str(form.get(key, ""))
+                if value not in ai_service.GEMINI_MODELS and value not in ai_service.CLAUDE_MODELS:
+                    continue
             elif key in ("debounce_seconds", "context_messages"):
                 low, high = (0, 600) if key == "debounce_seconds" else (5, 100)
                 value = str(int_setting({key: str(form.get(key, ""))}, key, low, high))

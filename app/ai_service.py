@@ -1,16 +1,21 @@
-"""เรียก Claude เพื่อวิเคราะห์ข้อความลูกค้า ร่างคำตอบ และสรุปปัญหาเป็น ticket"""
+"""เรียก AI (Google Gemini หรือ Anthropic Claude) เพื่อวิเคราะห์ข้อความลูกค้า ร่างคำตอบ และสรุปปัญหาเป็น ticket"""
 
 import base64
 import json
 import logging
+import os
 from dataclasses import dataclass
 from datetime import timezone
 from pathlib import Path
 
 import anthropic
+import httpx
+from google import genai
+from google.genai import errors as genai_errors
+from google.genai import types as genai_types
 
 from .config import DISPLAY_TZ, MEDIA_DIR
-from .database import Message, Ticket
+from .database import DEFAULT_SETTINGS, Message, Ticket
 
 log = logging.getLogger(__name__)
 
@@ -28,6 +33,17 @@ CATEGORIES = {
 SEVERITIES = ["low", "medium", "high", "critical"]
 IMAGE_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp"}
 MAX_IMAGES = 4
+# โมเดลที่เลือกได้ในหน้าตั้งค่า (ขึ้นต้นด้วย gemini- = Google AI Studio, claude- = Anthropic)
+GEMINI_MODELS = {
+    "gemini-3.8-flash": "Gemini 3.8 Flash — ฟรี แนะนำ",
+    "gemini-3.5-flash-lite": "Gemini 3.5 Flash-Lite — ฟรี เร็ว โควตาเยอะกว่า",
+    "gemini-2.5-flash": "Gemini 2.5 Flash — ฟรี รุ่นเก่า",
+}
+CLAUDE_MODELS = {
+    "claude-opus-5-5": "Claude Opus 5.5 — เสียเงิน ฉลาดที่สุด",
+    "claude-sonnet-5-5": "Claude Sonnet 5.5 — เสียเงิน",
+    "claude-haiku-4-5": "Claude Haiku 4.5 — เสียเงิน ถูกที่สุด",
+}
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 # โมเดลที่รองรับ fallbacks="default" (ถ้าถูกปฏิเสธ ระบบจะลองโมเดลสำรองให้อัตโนมัติ)
 FALLBACK_MODELS = {"claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5", "claude-fable-5-1"}
@@ -103,35 +119,17 @@ class AIError(Exception):
     pass
 
 
-_client: anthropic.AsyncAnthropic | None = None
+def is_gemini(model: str) -> bool:
+    return model.startswith("gemini")
 
 
-def get_client() -> anthropic.AsyncAnthropic:
-    global _client
-    if _client is None:
-        _client = anthropic.AsyncAnthropic()
-    return _client
-
-
-def _system_prompt(settings: dict[str, str]) -> list[dict]:
-    text = (
+def _system_text(settings: dict[str, str]) -> str:
+    return (
         SYSTEM_INSTRUCTIONS
         + "\n\n# ข้อมูลธุรกิจ\n" + settings.get("business_context", "")
         + "\n\n# ฐานความรู้ / วิธีตอบ\n" + settings.get("knowledge_base", "")
         + "\n\n# สไตล์การตอบ\n" + settings.get("reply_style", "")
     )
-    # ส่วนนี้คงที่ระหว่างคำขอ จึงแคชไว้เพื่อลดค่าใช้จ่าย
-    return [{"type": "text", "text": text, "cache_control": {"type": "ephemeral"}}]
-
-
-def _output_config(settings: dict[str, str], fmt: dict | None = None) -> dict:
-    config: dict = {}
-    model = settings.get("ai_model", "")
-    if settings.get("ai_effort") and not model.startswith("claude-haiku"):
-        config["effort"] = settings["ai_effort"]
-    if fmt:
-        config["format"] = fmt
-    return config
 
 
 def format_transcript(chat_title: str, history: list[Message], new_ids: set[int]) -> str:
@@ -147,20 +145,17 @@ def format_transcript(chat_title: str, history: list[Message], new_ids: set[int]
     return "\n".join(lines)
 
 
-def _image_blocks(messages: list[Message]) -> list[dict]:
-    blocks: list[dict] = []
+# เนื้อหาที่ส่งให้ AI เก็บเป็นรายการกลาง: ("text", str) หรือ ("image", bytes, media_type)
+def _image_parts(messages: list[Message]) -> list[tuple]:
+    parts: list[tuple] = []
     for m in [m for m in messages if m.media_path][-MAX_IMAGES:]:
         path = MEDIA_DIR / m.media_path
         media_type = IMAGE_TYPES.get(Path(m.media_path).suffix.lower())
         if not media_type or not path.exists() or path.stat().st_size > 5 * 1024 * 1024:
             continue
-        blocks.append({"type": "text", "text": f"รูปภาพจากข้อความ #{m.tg_message_id}:"})
-        blocks.append({
-            "type": "image",
-            "source": {"type": "base64", "media_type": media_type,
-                       "data": base64.standard_b64encode(path.read_bytes()).decode()},
-        })
-    return blocks
+        parts.append(("text", f"รูปภาพจากข้อความ #{m.tg_message_id}:"))
+        parts.append(("image", path.read_bytes(), media_type))
+    return parts
 
 
 def _open_tickets_text(tickets: list[Ticket]) -> str:
@@ -170,21 +165,109 @@ def _open_tickets_text(tickets: list[Ticket]) -> str:
     return "ticket ที่เปิดอยู่ของแชทนี้:\n" + "\n".join(rows)
 
 
-async def _call(settings: dict[str, str], messages: list[dict], fmt: dict | None = None):
-    model = settings.get("ai_model") or "claude-opus-5-5"
+async def _call(settings: dict[str, str], parts: list[tuple], schema: dict | None = None) -> str:
+    model = settings.get("ai_model") or DEFAULT_SETTINGS["ai_model"]
+    if is_gemini(model):
+        return await _call_gemini(model, settings, parts, schema)
+    return await _call_claude(model, settings, parts, schema)
+
+
+# ---------------------------------------------------------------- Google Gemini (AI Studio)
+_gemini: genai.Client | None = None
+
+
+def _gemini_client() -> genai.Client:
+    global _gemini
+    if _gemini is None:
+        key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        if not key:
+            raise AIError("ยังไม่ได้ตั้งค่า GEMINI_API_KEY (สร้างฟรีที่ aistudio.google.com/apikey)")
+        _gemini = genai.Client(api_key=key)
+    return _gemini
+
+
+def _strip_additional_properties(schema):
+    """Gemini ไม่ต้องการ additionalProperties ใน schema"""
+    if isinstance(schema, dict):
+        return {k: _strip_additional_properties(v) for k, v in schema.items() if k != "additionalProperties"}
+    return schema
+
+
+async def _call_gemini(model: str, settings: dict[str, str], parts: list[tuple], schema: dict | None) -> str:
+    contents = [
+        p[1] if p[0] == "text" else genai_types.Part.from_bytes(data=p[1], mime_type=p[2]) for p in parts
+    ]
+    config = genai_types.GenerateContentConfig(
+        system_instruction=_system_text(settings),
+        max_output_tokens=8192,
+        response_mime_type="application/json" if schema else None,
+        response_json_schema=_strip_additional_properties(schema) if schema else None,
+        automatic_function_calling=genai_types.AutomaticFunctionCallingConfig(disable=True),
+    )
+    try:
+        response = await _gemini_client().aio.models.generate_content(model=model, contents=contents, config=config)
+    except genai_errors.ClientError as e:
+        if e.code == 429:
+            raise AIError("โควตาฟรีของ Gemini เต็ม (เรียกบ่อยเกินไป) ลองใหม่ภายหลัง หรือเปลี่ยนเป็นรุ่น Flash-Lite") from e
+        if e.code in (400, 401, 403) and "key" in str(e).lower():
+            raise AIError("GEMINI_API_KEY ไม่ถูกต้อง") from e
+        if e.code == 404:
+            raise AIError(f"ไม่พบโมเดล {model} ลองเลือกรุ่นอื่นในหน้าตั้งค่า") from e
+        raise AIError(f"Gemini ตอบกลับผิดพลาด ({e.code}): {e.message}") from e
+    except genai_errors.ServerError as e:
+        raise AIError(f"Gemini ขัดข้องชั่วคราว ({e.code}) ลองใหม่ภายหลัง") from e
+    except (httpx.HTTPError, OSError) as e:
+        raise AIError("เชื่อมต่อ Gemini ไม่ได้ ตรวจสอบอินเทอร์เน็ต") from e
+
+    text = (response.text or "").strip()
+    if not text:
+        reason = response.candidates[0].finish_reason if response.candidates else "ไม่ทราบสาเหตุ"
+        raise AIError(f"Gemini ไม่ตอบกลับ ({reason})")
+    return text
+
+
+# ---------------------------------------------------------------- Anthropic Claude
+_claude: anthropic.AsyncAnthropic | None = None
+
+
+def _claude_client() -> anthropic.AsyncAnthropic:
+    global _claude
+    if _claude is None:
+        _claude = anthropic.AsyncAnthropic()
+    return _claude
+
+
+def _claude_content(parts: list[tuple]) -> list[dict]:
+    blocks = []
+    for p in parts:
+        if p[0] == "text":
+            blocks.append({"type": "text", "text": p[1]})
+        else:
+            blocks.append({"type": "image", "source": {
+                "type": "base64", "media_type": p[2], "data": base64.standard_b64encode(p[1]).decode()}})
+    return blocks
+
+
+async def _call_claude(model: str, settings: dict[str, str], parts: list[tuple], schema: dict | None) -> str:
+    output_config: dict = {}
+    if settings.get("ai_effort") and not model.startswith("claude-haiku"):
+        output_config["effort"] = settings["ai_effort"]
+    if schema:
+        output_config["format"] = {"type": "json_schema", "schema": schema}
     extra = {"betas": [FALLBACK_BETA], "fallbacks": "default"} if model in FALLBACK_MODELS else {}
     try:
-        response = await get_client().beta.messages.create(
+        response = await _claude_client().beta.messages.create(
             model=model,
             max_tokens=16000,
-            system=_system_prompt(settings),
-            messages=messages,
-            output_config=_output_config(settings, fmt),
+            # ส่วนนี้คงที่ระหว่างคำขอ จึงแคชไว้เพื่อลดค่าใช้จ่าย
+            system=[{"type": "text", "text": _system_text(settings), "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": _claude_content(parts)}],
+            output_config=output_config,
             **extra,
         )
     except (anthropic.AuthenticationError, TypeError) as e:
         # TypeError = SDK หาข้อมูลยืนยันตัวตนไม่เจอ (ยังไม่ได้ใส่ ANTHROPIC_API_KEY)
-        raise AIError("ANTHROPIC_API_KEY ไม่ถูกต้อง หรือยังไม่ได้ตั้งค่าในไฟล์ .env") from e
+        raise AIError("ANTHROPIC_API_KEY ไม่ถูกต้อง หรือยังไม่ได้ตั้งค่า") from e
     except anthropic.RateLimitError as e:
         raise AIError("เรียก AI บ่อยเกินไป (rate limit) ลองใหม่ภายหลัง") from e
     except anthropic.APIStatusError as e:
@@ -200,6 +283,38 @@ async def _call(settings: dict[str, str], messages: list[dict], fmt: dict | None
     return text
 
 
+# ---------------------------------------------------------------- งานที่ระบบเรียกใช้
+def _parse_analysis(text: str) -> Analysis:
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise AIError("อ่านผลลัพธ์จาก AI ไม่ได้") from e
+    if not isinstance(data, dict):
+        raise AIError("อ่านผลลัพธ์จาก AI ไม่ได้")
+
+    def as_int(v) -> int:
+        try:
+            return int(v or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    category = data.get("issue_category")
+    severity = data.get("severity")
+    return Analysis(
+        needs_reply=bool(data.get("needs_reply")),
+        reply_text=str(data.get("reply_text") or ""),
+        reply_to_message_id=as_int(data.get("reply_to_message_id")),
+        issue_category=category if category in CATEGORIES else "other",
+        issue_title=str(data.get("issue_title") or ""),
+        issue_summary=str(data.get("issue_summary") or ""),
+        severity=severity if severity in SEVERITIES else "medium",
+        website_url=str(data.get("website_url") or ""),
+        customer_name=str(data.get("customer_name") or ""),
+        existing_ticket_id=as_int(data.get("existing_ticket_id")),
+        note_for_admin=str(data.get("note_for_admin") or ""),
+    )
+
+
 async def analyze_chat(
     settings: dict[str, str],
     chat_title: str,
@@ -208,22 +323,13 @@ async def analyze_chat(
     open_tickets: list[Ticket],
 ) -> Analysis:
     transcript = format_transcript(chat_title, history, {m.id for m in new_messages})
-    content = [
-        {"type": "text", "text": _open_tickets_text(open_tickets)},
-        {"type": "text", "text": "บทสนทนา:\n" + transcript},
-        *_image_blocks(new_messages),
-        {"type": "text", "text": "วิเคราะห์ข้อความ [ใหม่] ตามคำแนะนำ แล้วตอบเป็น JSON ตาม schema"},
+    parts = [
+        ("text", _open_tickets_text(open_tickets)),
+        ("text", "บทสนทนา:\n" + transcript),
+        *_image_parts(new_messages),
+        ("text", "วิเคราะห์ข้อความ [ใหม่] ตามคำแนะนำ แล้วตอบเป็น JSON ตาม schema"),
     ]
-    text = await _call(
-        settings,
-        [{"role": "user", "content": content}],
-        {"type": "json_schema", "schema": ANALYSIS_SCHEMA},
-    )
-    try:
-        data = json.loads(text)
-        return Analysis(**{k: data[k] for k in ANALYSIS_SCHEMA["required"]})
-    except (json.JSONDecodeError, KeyError, TypeError) as e:
-        raise AIError("อ่านผลลัพธ์จาก AI ไม่ได้") from e
+    return _parse_analysis(await _call(settings, parts, ANALYSIS_SCHEMA))
 
 
 async def rewrite_reply(
@@ -236,4 +342,4 @@ async def rewrite_reply(
         + "\n\nคำสั่งจากแอดมิน: " + instruction
         + "\n\nเขียนข้อความตอบกลับลูกค้าใหม่ตามคำสั่งของแอดมิน ตอบเฉพาะข้อความที่พร้อมส่งเท่านั้น"
     )
-    return await _call(settings, [{"role": "user", "content": prompt}])
+    return await _call(settings, [("text", prompt)])

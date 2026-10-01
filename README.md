@@ -37,7 +37,8 @@ copy .env.example .env          # macOS/Linux: cp .env.example .env
 
 | ตัวแปร | ความหมาย |
 |---|---|
-| `ANTHROPIC_API_KEY` | คีย์ Claude API จาก https://platform.claude.com/ |
+| `GEMINI_API_KEY` | คีย์ Google AI Studio (ฟรี) จาก https://aistudio.google.com/apikey · ค่าเริ่มต้นใช้ Gemini |
+| `ANTHROPIC_API_KEY` | (ไม่บังคับ) คีย์ Claude API จาก https://platform.claude.com/ ถ้าจะเลือกโมเดล Claude ซึ่งเสียเงิน |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | บัญชีผู้ดูแลระบบคนแรกของหลังบ้าน (สร้างครั้งแรกที่เปิดโปรแกรม) |
 | `SECRET_KEY` | คีย์เข้ารหัสเซสชัน Telegram และคุกกี้ (เว้นว่างได้ ระบบจะสร้างให้ใน `data/secret.key`) |
 | `HOST` / `PORT` | ที่อยู่เว็บหลังบ้าน (ค่าเริ่มต้น `127.0.0.1:8000`) |
@@ -65,7 +66,7 @@ python main.py
 1. **Volume (สำคัญที่สุด)**: เปิด service → คลิกขวา (หรือกด ⌘K / Ctrl+K) → **Attach Volume** → Mount path `/data`
    ระบบจะเก็บฐานข้อมูล ตั้งค่า รูปภาพ และ session Telegram ลง Volume ให้อัตโนมัติ (อ่านจาก `RAILWAY_VOLUME_MOUNT_PATH`)
    ถ้าไม่มี Volume ทุกอย่างจะหายทุกครั้งที่ deploy ใหม่ และหน้าเว็บจะขึ้นแถบเตือนสีแดงให้ผู้ดูแลระบบเห็น
-2. **Variables**: ใส่ `ANTHROPIC_API_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD` (`SECRET_KEY` ไม่บังคับเมื่อมี Volume เพราะระบบสร้างและเก็บไว้ใน Volume ให้)
+2. **Variables**: ใส่ `GEMINI_API_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD` (และ `ANTHROPIC_API_KEY` ถ้าจะใช้ Claude) (`SECRET_KEY` ไม่บังคับเมื่อมี Volume เพราะระบบสร้างและเก็บไว้ใน Volume ให้)
 3. **Networking**: กด Generate Domain เพื่อเปิดหน้าหลังบ้าน
 4. ใช้ **1 replica** เท่านั้น (บัญชี Telegram หนึ่งบัญชีควรเชื่อมต่อจากที่เดียว)
 
@@ -87,7 +88,7 @@ app/
   main.py              เว็บหลังบ้าน (FastAPI) และทุกหน้า/route
   telegram_service.py  เข้าสู่ระบบ Telegram, รับข้อความ, ส่งข้อความ (Telethon)
   analyzer.py          รอลูกค้าพิมพ์ครบ → วิเคราะห์ → สร้างร่างคำตอบ + ticket
-  ai_service.py        prompt และการเรียก Claude (structured output)
+  ai_service.py        prompt และการเรียก AI (Gemini / Claude, structured output)
   site_checker.py      ตรวจสอบสถานะเว็บไซต์
   database.py          โมเดลฐานข้อมูล (SQLAlchemy + SQLite)
   security.py          เข้ารหัส session, hash รหัสผ่านผู้ใช้หลังบ้าน
@@ -100,5 +101,7 @@ railway.json
 ## ปรับแต่ง
 
 - **ประเภทปัญหา**: แก้ `CATEGORIES` ใน `app/ai_service.py`
-- **โมเดล AI / ระดับการคิด / เวลารอ**: ตั้งได้ที่หน้า **ตั้งค่า** (ค่าเริ่มต้น `claude-opus-5-5`)
+- **โมเดล AI / เวลารอ**: ตั้งได้ที่หน้า **ตั้งค่า** (ค่าเริ่มต้น `gemini-3.8-flash` ของ Google AI Studio ซึ่งใช้ฟรี)
+  - โควตาฟรีของ Gemini มีจำกัดจำนวนครั้งต่อนาที/ต่อวัน ดูได้ที่ https://aistudio.google.com/rate-limit ถ้าเต็มบ่อยให้เปลี่ยนเป็น Flash-Lite
+  - Google ระบุว่าข้อมูลที่ส่งผ่านโควตาฟรีอาจถูกนำไปใช้ปรับปรุงผลิตภัณฑ์ของ Google ถ้าไม่ต้องการ ให้เปิด billing ใน AI Studio หรือใช้ Claude
 - **ใช้ฐานข้อมูลอื่น**: ตั้ง `DATABASE_URL` ใน `.env` (เช่น PostgreSQL)
