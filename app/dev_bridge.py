@@ -15,7 +15,7 @@ from pathlib import Path
 from sqlalchemy import select
 
 from . import ai_service
-from .config import MEDIA_DIR, PUBLIC_URL
+from .config import MEDIA_DIR
 from .database import (
     Chat,
     Message,
@@ -149,8 +149,6 @@ def format_ticket(ticket: Ticket, chat_title: str) -> str:
             site = " (เข้าได้)" if sc.get("ok") else f" (เข้าไม่ได้: {sc.get('error') or sc.get('status_code')})"
         lines.append(f"เว็บไซต์: {ticket.website_url}{site}")
     lines += ["", f"ปัญหา: {ticket.title}", ticket.summary]
-    if PUBLIC_URL:
-        lines += ["", f"ดูรายละเอียด: {PUBLIC_URL}/tickets/{ticket.id}"]
     lines += ["", "ตอบกลับ (reply) ข้อความนี้เพื่ออัปเดต เช่น \"กำลังแก้\" \"แก้เสร็จแล้ว\" หรือขอข้อมูลลูกค้าเพิ่ม"]
     return "\n".join(lines)
 

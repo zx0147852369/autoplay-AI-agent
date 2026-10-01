@@ -30,10 +30,6 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 HOST = os.getenv("HOST") or ("0.0.0.0" if ON_CLOUD else "127.0.0.1")
 PORT = int(os.getenv("PORT", "8000"))
 
-# ลิงก์หน้าเว็บหลังบ้าน (ใส่ในข้อความที่ส่งเข้ากลุ่มโปรแกรมเมอร์) บน Railway ใช้โดเมนที่ Railway สร้างให้
-_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
-PUBLIC_URL = (os.getenv("PUBLIC_URL") or (f"https://{_domain}" if _domain else "")).rstrip("/")
-
 # เวลาที่แสดงบนหน้าเว็บ (ค่าเริ่มต้น: เวลาประเทศไทย UTC+7)
 DISPLAY_TZ = timezone(timedelta(hours=int(os.getenv("DISPLAY_TZ_OFFSET", "7"))))
 
