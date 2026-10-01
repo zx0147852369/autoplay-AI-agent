@@ -139,11 +139,13 @@ class Analysis:
 
 
 class AIError(Exception):
-    def __init__(self, message: str, retryable: bool = False, quota: bool = False, bad_key: bool = False):
+    def __init__(self, message: str, retryable: bool = False, quota: bool = False, bad_key: bool = False,
+                 key_blocked: bool = False):
         super().__init__(message)
         self.retryable = retryable  # ลองโมเดลอื่นแทนได้ (ล่มชั่วคราว / โควตาเต็ม / ไม่พบโมเดล)
         self.quota = quota  # โควตาของคีย์นี้เต็ม -> ลองคีย์สำรองได้
         self.bad_key = bad_key  # คีย์นี้ใช้ไม่ได้ -> ข้ามไปคีย์อื่น
+        self.key_blocked = key_blocked  # ปัญหาระดับบัญชีของคีย์นี้ (เช่น เครดิตหมด) -> พักคีย์ แล้วใช้คีย์อื่น
 
 
 # โมเดลที่ใช้ได้จริงในคำขอล่าสุด (แสดงในหน้าเว็บเมื่อระบบสลับไปใช้รุ่นสำรอง)
@@ -278,6 +280,9 @@ async def _call_gemini(model: str, system: str, parts: list[tuple], schema: dict
             if key in _bad_keys:
                 errors_seen.append(f"{quota.slot_label(slot)}: คีย์ใช้ไม่ได้")
                 continue
+            if blocked := quota.key_block(key):
+                errors_seen.append(f"{quota.slot_label(slot)}: {blocked}")
+                continue
             ok, why = quota.available(name, slot)
             if not ok:  # โควตาของรุ่นนี้ในคีย์นี้หมดตามที่นับไว้ -> ไม่เรียกให้เสียเปล่า
                 errors_seen.append(f"{label}: {why}")
@@ -286,6 +291,11 @@ async def _call_gemini(model: str, system: str, parts: list[tuple], schema: dict
             try:
                 text = await _call_gemini_once(name, system, parts, schema, key=key, slot=slot)
             except AIError as e:
+                if e.key_blocked:
+                    quota.block_key(key, "เครดิตหมด (402) พักคีย์ 1 ชม.")
+                    log.error("Gemini %s: %s", quota.slot_label(slot), e)
+                    errors_seen.append(f"{quota.slot_label(slot)}: {e}")
+                    continue
                 if e.bad_key:
                     _bad_keys.add(key)
                     log.error("Gemini %s ใช้ไม่ได้: %s", quota.slot_label(slot), e)
@@ -355,6 +365,11 @@ def _gemini_error(e: "genai_errors.APIError") -> AIError:
         return AIError("คีย์ Gemini ไม่ถูกต้องหรือถูกปิดใช้งาน", bad_key=True)
     if e.code == 404:
         return AIError("ไม่พบโมเดลนี้ (404)", retryable=True)
+    text = str(e).lower()
+    if e.code == 402 or (e.code == 403 and ("billing" in text or "credit" in text)):
+        # โปรเจกต์นี้เปิด billing แบบเติมเงิน และเครดิตหมด -> ใช้ไม่ได้ทุกรุ่นจนกว่าจะเติมเงิน
+        return AIError(f"เครดิตของโปรเจกต์ที่ผูกกับคีย์นี้หมด ({e.code}) ต้องเติมเงินที่ AI Studio หรือใช้คีย์จากโปรเจกต์ฟรี",
+                       retryable=True, key_blocked=True)
     return AIError(f"Gemini ตอบกลับผิดพลาด ({e.code}): {e.message}")
 
 

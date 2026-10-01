@@ -37,6 +37,24 @@ def gemini_keys() -> list[str]:
     return result
 
 
+# คีย์ที่ Google แจ้งปัญหาระดับบัญชี (เช่น เครดิตเติมเงินหมด 402) -> พักทั้งคีย์ทุกรุ่นชั่วคราว
+_blocked: dict[str, tuple[datetime, str]] = {}
+KEY_BLOCK_MINUTES = 60
+
+
+def block_key(key: str, reason: str, minutes: int = KEY_BLOCK_MINUTES) -> None:
+    _blocked[key] = (utcnow() + timedelta(minutes=minutes), reason)
+
+
+def key_block(key: str) -> str:
+    """เหตุผลที่คีย์นี้ถูกพัก (ค่าว่าง = ใช้ได้)"""
+    entry = _blocked.get(key)
+    if entry and entry[0] <= utcnow():
+        _blocked.pop(key, None)
+        return ""
+    return entry[1] if entry else ""
+
+
 def mask_key(key: str) -> str:
     return f"{key[:4]}…{key[-4:]}" if len(key) > 10 else "…"
 
@@ -153,6 +171,9 @@ def snapshot(settings: dict[str, str]) -> dict:
                     AiUsage.model == model, AiUsage.key_slot == slot, AiUsage.at >= start, AiUsage.ok.is_(False))) or 0
                 pct = min(100, round(used / lim["rpd"] * 100)) if lim["rpd"] else 0
                 ok, why = available(model, slot)
+                blocked = key_block(keys[slot - 1]) if slot <= len(keys) else ""
+                if blocked:
+                    ok, why = False, blocked
                 per_key.append({
                     "slot": slot, "label": slot_label(slot),
                     "mask": mask_key(keys[slot - 1]) if slot <= len(keys) else "",
@@ -160,7 +181,7 @@ def snapshot(settings: dict[str, str]) -> dict:
                     "left": max(0, lim["rpd"] - used) if lim["rpd"] else None,
                     "level": level(used, lim["rpd"], pct),
                     "per_min": _counts(db, model, now - timedelta(seconds=60), ok_only=False, slot=slot),
-                    "last_429": _last_429(db, model, slot, start), "ready": ok, "why": why,
+                    "last_429": _last_429(db, model, slot, start), "ready": ok, "why": why, "blocked": blocked,
                 })
             used = sum(k["used"] for k in per_key)
             limit = lim["rpd"] * len(slots)

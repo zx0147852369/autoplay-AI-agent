@@ -84,6 +84,7 @@
             {% for k in r.key_rows %}
               <div class="qkey-state">
               {% if k.limit and not k.left %}<span class="state bad"><span class="dot off"></span>{{ k.label }} หมดแล้ว</span>
+              {% elif k.blocked %}<span class="state bad" title="{{ k.why }}"><span class="dot off"></span>{{ k.label }} เครดิตหมด</span>
               {% elif not k.ready %}<span class="state warn" title="{{ k.why }}"><span class="dot wait"></span>{{ k.label }} พักชั่วคราว</span>
               {% elif k.last_429 %}<span class="state warn"><span class="dot wait"></span>{{ k.label }} Google แจ้งเต็ม {{ k.last_429 | localtime_hm }}</span>
               {% else %}<span class="state ok"><span class="dot live"></span>{{ k.label }} พร้อมใช้</span>{% endif %}
