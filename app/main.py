@@ -715,7 +715,7 @@ async def settings_save(request: Request):
     form = await request.form()
     with SessionLocal() as db:
         for key in DEFAULT_SETTINGS:
-            if key in ("auto_draft", "auto_ticket", "site_check", "notify_resolved", "dev_forward", "dev_watch"):
+            if key in ("auto_draft", "auto_ticket", "site_check", "ask_link", "notify_resolved", "dev_forward", "dev_watch"):
                 value = "1" if form.get(key) else "0"
             elif key == "dev_group_id":
                 value = str(form.get(key, "")).strip()

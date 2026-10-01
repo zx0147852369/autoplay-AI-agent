@@ -148,6 +148,8 @@ def format_ticket(ticket: Ticket, chat_title: str) -> str:
             sc = json.loads(ticket.site_check)
             site = " (เข้าได้)" if sc.get("ok") else f" (เข้าไม่ได้: {sc.get('error') or sc.get('status_code')})"
         lines.append(f"เว็บไซต์: {ticket.website_url}{site}")
+    else:
+        lines.append("เว็บไซต์: ยังไม่มีลิงก์ (ขอจากลูกค้าแล้ว)")
     lines += ["", f"ปัญหา: {ticket.title}", ticket.summary]
     lines += ["", "ตอบกลับ (reply) ข้อความนี้เพื่ออัปเดต เช่น \"กำลังแก้\" \"แก้เสร็จแล้ว\" หรือขอข้อมูลลูกค้าเพิ่ม"]
     return "\n".join(lines)

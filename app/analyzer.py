@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import re
 import time
 
 from sqlalchemy import func, select
@@ -19,6 +20,16 @@ OPEN_STATUSES = ("open", "in_progress")
 
 SWEEP_INTERVAL = 60          # ตรวจหาข้อความค้างทุก 60 วินาที
 RETRY_AFTER_ERROR = 5 * 60   # ถ้า AI ผิดพลาด รอ 5 นาทีก่อนลองใหม่ (กันโควตาฟรีหมดเร็ว)
+
+# ขอลิงก์เว็บไซต์จากลูกค้าเมื่อแจ้งปัญหาแต่ไม่ได้ให้ลิงก์
+ASK_LINK = "รบกวนขอลิงก์เว็บไซต์ที่พบปัญหาด้วยนะคะ"
+ASK_LINK_FULL = "รับเรื่องแล้วค่ะ " + ASK_LINK
+LINK_REQUEST_RE = re.compile(r"ลิงก์|ลิงค์|ลิ้งค์|ลิ้งก์|link|url", re.IGNORECASE)
+URL_RE = re.compile(r"https?://[^\s<>\"')]+", re.IGNORECASE)
+# ลิงก์รูปภาพ / โซเชียล ไม่ใช่เว็บไซต์ของลูกค้า
+NOT_SITE_HOSTS = ("imgur.com", "pic.in.th", "ibb.co", "postimg", "prnt.sc", "gyazo", "t.me", "telegram.",
+                  "line.me", "lin.ee", "facebook.com", "fb.com", "youtube.com", "youtu.be", "google.com/drive",
+                  "drive.google", "tiktok.com", "instagram.com")
 
 _timers: dict[int, asyncio.Task] = {}
 _last_attempt: dict[int, float] = {}
@@ -125,7 +136,15 @@ async def analyze(chat_id: int) -> str:
         ticket_id = None
         if result.is_issue and settings.get("auto_ticket") == "1":
             ticket_id = await _save_ticket(chat_id, result, new_messages, settings)
-        if result.needs_reply and result.reply_text.strip() and settings.get("auto_draft") == "1":
+        ask_link = bool(ticket_id) and settings.get("ask_link") == "1" and needs_link_request(ticket_id)
+        if ask_link:
+            if result.needs_reply and result.reply_text.strip():
+                if not LINK_REQUEST_RE.search(result.reply_text):
+                    result.reply_text = result.reply_text.rstrip() + "\n" + ASK_LINK
+            else:
+                result.needs_reply, result.reply_text = True, ASK_LINK_FULL
+            result.note_for_admin = (result.note_for_admin + " · ระบบขอลิงก์เว็บไซต์จากลูกค้า").strip(" ·")
+        if result.needs_reply and result.reply_text.strip() and (settings.get("auto_draft") == "1" or ask_link):
             _save_draft(chat_id, result, new_messages, ticket_id)
         _mark_analyzed(new_messages)
 
@@ -135,6 +154,29 @@ async def analyze(chat_id: int) -> str:
         if result.needs_reply:
             parts.append("สร้างร่างคำตอบแล้ว")
         return ", ".join(parts) or "ไม่ต้องตอบ / ไม่ใช่การแจ้งปัญหา"
+
+
+def find_site_url(messages: list[Message]) -> str:
+    """ลิงก์เว็บไซต์แรกที่ลูกค้าพิมพ์มา (ข้ามลิงก์รูปภาพ/โซเชียล)"""
+    for m in messages:
+        for url in URL_RE.findall(m.text or ""):
+            url = url.rstrip(".,;")
+            if not any(host in url.lower() for host in NOT_SITE_HOSTS):
+                return url
+    return ""
+
+
+def needs_link_request(ticket_id: int) -> bool:
+    """ticket ยังไม่มีลิงก์เว็บไซต์ และยังไม่เคยขอลิงก์จากลูกค้า"""
+    with SessionLocal() as db:
+        ticket = db.get(Ticket, ticket_id)
+        if not ticket or ticket.website_url:
+            return False
+        # ร่าง AI ที่ยังไม่ส่งจะถูกแทนที่ด้วยร่างใหม่ จึงนับเฉพาะที่ส่งแล้ว หรือข้อความประเภทอื่นที่ยังรออยู่
+        asked = db.scalars(select(Reply.final_text).where(
+            Reply.ticket_id == ticket_id,
+            Reply.status.in_(("sending", "sent")) | (Reply.status.in_(("pending", "failed")) & (Reply.kind != "ai"))))
+        return not any(LINK_REQUEST_RE.search(text or "") for text in asked)
 
 
 def _mark_analyzed(messages: list[Message]) -> None:
@@ -182,7 +224,7 @@ async def _save_ticket(chat_id: int, result: ai_service.Analysis, new_messages: 
                 summary=result.issue_summary,
                 severity=result.severity,
                 customer_name=result.customer_name or (customer_msgs[0].sender_name if customer_msgs else ""),
-                website_url=result.website_url.strip(),
+                website_url=result.website_url.strip() or find_site_url(customer_msgs),
             )
             db.add(ticket)
             db.flush()
@@ -191,8 +233,8 @@ async def _save_ticket(chat_id: int, result: ai_service.Analysis, new_messages: 
         else:
             db.add(TicketEvent(ticket_id=ticket.id, kind="ai_summary", author="AI",
                                body="ข้อมูลเพิ่มเติม: " + result.issue_summary))
-            if result.website_url and not ticket.website_url:
-                ticket.website_url = result.website_url.strip()
+            if not ticket.website_url:
+                ticket.website_url = result.website_url.strip() or find_site_url(customer_msgs)
             if ai_service.SEVERITIES.index(result.severity) > ai_service.SEVERITIES.index(ticket.severity):
                 ticket.severity = result.severity
 

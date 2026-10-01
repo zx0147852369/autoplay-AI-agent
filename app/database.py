@@ -197,6 +197,7 @@ DEFAULT_SETTINGS = {
     "auto_draft": "1",
     "auto_ticket": "1",
     "site_check": "1",
+    "ask_link": "1",
     "notify_resolved": "1",
     "resolved_message": (
         "สวัสดีค่ะ คุณ{customer} ปัญหา \"{title}\" ที่แจ้งไว้ ทีมงานได้แก้ไขเรียบร้อยแล้วค่ะ "

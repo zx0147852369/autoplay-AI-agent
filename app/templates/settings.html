@@ -30,6 +30,8 @@
         <span>เปิด ticket เมื่อลูกค้าแจ้งปัญหา</span></label>
       <label class="check-row"><input type="checkbox" name="site_check" {{ 'checked' if settings.site_check == '1' }}>
         <span>ตรวจเว็บไซต์ที่ลูกค้าแจ้ง<span class="hint">เช็กว่าเข้าได้ไหม และใช้เวลาโหลดเท่าไร</span></span></label>
+      <label class="check-row"><input type="checkbox" name="ask_link" {{ 'checked' if settings.ask_link == '1' }}>
+        <span>ขอลิงก์เว็บไซต์เมื่อลูกค้าไม่ได้แจ้ง<span class="hint">ขอครั้งเดียวต่อ ticket · ต้องอนุมัติก่อนส่ง</span></span></label>
     </section>
     <section class="card">
       <div class="card-head"><h2>แจ้งลูกค้าเมื่อแก้ไขเสร็จ</h2></div>
