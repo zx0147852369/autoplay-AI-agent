@@ -182,7 +182,7 @@ def back(url: str) -> RedirectResponse:
 async def login_page(request: Request):
     # หน้า login แสดงข้อผิดพลาดในฟอร์มเลย แทนการเด้งเป็น toast
     flashes = request.session.pop("flash", [])
-    return render(request, "login.html", None, need_setup=not ADMIN_PASSWORD, year=utcnow().year,
+    return render(request, "login.html", None, need_setup=not ADMIN_PASSWORD,
                   login_errors=list(dict.fromkeys(f["message"] for f in flashes if f["kind"] == "error")))
 
 
