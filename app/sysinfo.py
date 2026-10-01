@@ -96,7 +96,7 @@ def snapshot() -> dict:
     load1 = None
     if psutil:
         try:
-            proc_cpu = round(_proc.cpu_percent(interval=None) / cores, 1)  # % เทียบทั้งเครื่อง
+            proc_cpu = round(_proc.cpu_percent(interval=None), 1)  # % เทียบ 1 คอร์ (เกิน 100 ได้ถ้าใช้หลายคอร์)
             host_cpu = round(psutil.cpu_percent(interval=None), 1)
         except Exception:  # noqa: BLE001
             pass
@@ -147,6 +147,7 @@ def snapshot() -> dict:
         "cpu": {
             "proc": proc_cpu, "host": host_cpu, "host_level": _level(host_cpu),
             "cores": cores, "quota": quota, "load1": load1,
+            "proc_level": _level(min(proc_cpu, 100)),
         },
         "ram": {
             "used": mem_used, "limit": mem_limit, "pct": mem_pct, "level": _level(mem_pct),

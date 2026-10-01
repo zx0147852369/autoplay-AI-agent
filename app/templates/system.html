@@ -33,8 +33,8 @@
   <div class="resrows">
     <div class="resrow">
       <div class="resrow-head"><span>CPU ของบอท (โปรเซส)</span><b data-k="cpu.proc" data-suffix="%">{{ si.cpu.proc }}%</b></div>
-      <div class="qbar {{ si.cpu.host_level }}" data-bar="cpu.host"><span style="width: {{ si.cpu.host }}%"></span></div>
-      <div class="small muted">ทั้งเครื่อง <b data-k="cpu.host" data-suffix="%">{{ si.cpu.host }}%</b>{% if si.cpu.load1 is not none %} · load {{ si.cpu.load1 }}{% endif %} · {{ si.cpu.cores }} คอร์ · โควตา {{ si.machine.quota_str }}</div>
+      <div class="qbar {{ si.cpu.proc_level }}" data-bar="cpu.proc"><span style="width: {{ [si.cpu.proc, 100] | min }}%"></span></div>
+      <div class="small muted">CPU ทั้งเครื่อง <b data-k="cpu.host" data-suffix="%">{{ si.cpu.host }}%</b>{% if si.cpu.load1 is not none %} · load {{ si.cpu.load1 }}{% endif %} · {{ si.cpu.cores }} คอร์ · โควตา {{ si.machine.quota_str }}</div>
     </div>
     <div class="resrow">
       <div class="resrow-head"><span>แรมของคอนเทนเนอร์</span><b><span data-k="ram.used_str">{{ si.ram.used_str }}</span> / <span data-k="ram.limit_str">{{ si.ram.limit_str }}</span></b></div>

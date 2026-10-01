@@ -851,3 +851,14 @@ img.avatar.logo { object-fit: cover; background: #fff; border: 1px solid var(--l
 .resmeta .facts { grid-template-columns: 150px 1fr; margin: 0; }
 @media (max-width: 760px) { .resrows { grid-template-columns: 1fr; gap: 14px; } }
 
+/* ฟอนต์หน้าทรัพยากรเครื่องให้ใหญ่อ่านง่ายขึ้น */
+#resmon .resrows { gap: 24px; padding: 18px 2px 6px; }
+#resmon .resrow-head { font-size: 1.02rem; margin-bottom: 8px; }
+#resmon .resrow-head b { font-size: 1.1rem; }
+#resmon .qbar { height: 10px; }
+#resmon .resrow .small { font-size: 0.92rem; margin-top: 6px; }
+#resmon .resmeta .facts { font-size: 1rem; grid-template-columns: 180px 1fr; gap: 12px 16px; }
+#resmon .resmeta .facts dt { font-size: 0.98rem; }
+#resmon .strip-label { font-size: 0.88rem; }
+@media (max-width: 760px) { #resmon .resmeta .facts { grid-template-columns: 130px 1fr; } }
+
