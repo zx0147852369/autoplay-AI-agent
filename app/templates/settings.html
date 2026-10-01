@@ -9,6 +9,7 @@
 </div>
 
 <form method="post" action="/settings" class="grid-2 wide-left">
+  <div>
   <section class="card">
     <div class="card-head"><h2>ข้อมูลสำหรับร่างคำตอบ</h2></div>
     <div class="stack">
@@ -20,9 +21,10 @@
         <input name="reply_style" value="{{ settings.reply_style }}"></label>
     </div>
   </section>
+  {% include "_sound_card.html" %}
+  </div>
 
   <div>
-    {% include "_sound_card.html" %}
     <section class="card">
       <div class="card-head"><h2>ทำงานอัตโนมัติ</h2></div>
       <label class="check-row"><input type="checkbox" name="auto_draft" {{ 'checked' if settings.auto_draft == '1' }}>
