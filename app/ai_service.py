@@ -138,9 +138,11 @@ class Analysis:
 
 
 class AIError(Exception):
-    def __init__(self, message: str, retryable: bool = False):
+    def __init__(self, message: str, retryable: bool = False, quota: bool = False, bad_key: bool = False):
         super().__init__(message)
         self.retryable = retryable  # ลองโมเดลอื่นแทนได้ (ล่มชั่วคราว / โควตาเต็ม / ไม่พบโมเดล)
+        self.quota = quota  # โควตาของคีย์นี้เต็ม -> ลองคีย์สำรองได้
+        self.bad_key = bad_key  # คีย์นี้ใช้ไม่ได้ -> ข้ามไปคีย์อื่น
 
 
 # โมเดลที่ใช้ได้จริงในคำขอล่าสุด (แสดงในหน้าเว็บเมื่อระบบสลับไปใช้รุ่นสำรอง)
@@ -238,17 +240,15 @@ async def _call(settings: dict[str, str], parts: list[tuple], schema: dict | Non
 
 
 # ---------------------------------------------------------------- Google Gemini (AI Studio)
-_gemini: genai.Client | None = None
+_gemini_clients: dict[str, genai.Client] = {}
+_bad_keys: set[str] = set()  # คีย์ที่ Google แจ้งว่าใช้ไม่ได้ (ข้ามจนกว่าจะรีสตาร์ต / แก้คีย์)
+last_key_slot = 1
 
 
-def _gemini_client() -> genai.Client:
-    global _gemini
-    if _gemini is None:
-        key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-        if not key:
-            raise AIError("ยังไม่ได้ตั้งค่า GEMINI_API_KEY (สร้างฟรีที่ aistudio.google.com/apikey)")
-        _gemini = genai.Client(api_key=key)
-    return _gemini
+def _gemini_client(key: str) -> genai.Client:
+    if key not in _gemini_clients:
+        _gemini_clients[key] = genai.Client(api_key=key)
+    return _gemini_clients[key]
 
 
 def _strip_additional_properties(schema):
@@ -259,38 +259,57 @@ def _strip_additional_properties(schema):
 
 
 async def _call_gemini(model: str, system: str, parts: list[tuple], schema: dict | None) -> str:
-    """เรียกรุ่นที่เลือก ถ้าล่ม (503) โควตาเต็ม (429) หรือไม่มีรุ่นนี้ -> สลับไปรุ่นฟรีอื่นอัตโนมัติ"""
-    global last_model_used
+    """เรียกรุ่นที่เลือกด้วยคีย์หลัก ถ้าโควตาเต็ม (429) -> สลับไปคีย์สำรองรุ่นเดิม
+    ถ้าทุกคีย์ใช้รุ่นนี้ไม่ได้ (โควตาหมด / ล่ม 503 / ไม่มีรุ่นนี้) -> สลับไปรุ่นฟรีอื่นอัตโนมัติ"""
+    global last_model_used, last_key_slot
+    keys = quota.gemini_keys()
+    if not keys:
+        raise AIError("ยังไม่ได้ตั้งค่า GEMINI_API_KEY (สร้างฟรีที่ aistudio.google.com/apikey)")
     candidates = [model] + [m for m in GEMINI_MODELS if m != model]
     errors_seen = []
     tried = False
     for name in candidates:
-        ok, why = quota.available(name)
-        if not ok:  # โควตาของรุ่นนี้หมดตามที่นับไว้ -> ไม่เรียกให้เสียเปล่า
-            errors_seen.append(f"{name}: {why}")
-            continue
-        tried = True
-        try:
-            text = await _call_gemini_once(name, system, parts, schema)
-        except AIError as e:
-            if not e.retryable:
-                raise
-            errors_seen.append(f"{name}: {e}")
-            log.warning("Gemini %s ใช้ไม่ได้ (%s) ลองรุ่นถัดไป", name, e)
-            continue
-        if name != model:
-            log.info("ใช้ %s แทน %s ชั่วคราว", name, model)
-        last_model_used = name
-        return text
+        for slot, key in enumerate(keys, 1):
+            label = name if len(keys) == 1 else f"{name} {quota.slot_label(slot)}"
+            if key in _bad_keys:
+                errors_seen.append(f"{quota.slot_label(slot)}: คีย์ใช้ไม่ได้")
+                continue
+            ok, why = quota.available(name, slot)
+            if not ok:  # โควตาของรุ่นนี้ในคีย์นี้หมดตามที่นับไว้ -> ไม่เรียกให้เสียเปล่า
+                errors_seen.append(f"{label}: {why}")
+                continue
+            tried = True
+            try:
+                text = await _call_gemini_once(name, system, parts, schema, key=key, slot=slot)
+            except AIError as e:
+                if e.bad_key:
+                    _bad_keys.add(key)
+                    log.error("Gemini %s ใช้ไม่ได้: %s", quota.slot_label(slot), e)
+                    errors_seen.append(f"{quota.slot_label(slot)}: {e}")
+                    continue
+                if not e.retryable:
+                    raise
+                errors_seen.append(f"{label}: {e}")
+                log.warning("Gemini %s ใช้ไม่ได้ (%s) ลองคีย์/รุ่นถัดไป", label, e)
+                if e.quota or len(keys) == 1:
+                    continue  # โควตาเต็ม -> ลองคีย์สำรองของรุ่นเดิม
+                break  # รุ่นนี้ล่ม / ไม่มีรุ่นนี้ -> คีย์อื่นก็เจอเหมือนกัน ข้ามไปรุ่นถัดไป
+            if name != model or slot != 1:
+                log.info("ใช้ %s แทน %s คีย์หลัก ชั่วคราว", label, model)
+            last_model_used, last_key_slot = name, slot
+            return text
+    if keys and all(k in _bad_keys for k in keys):
+        raise AIError("คีย์ Gemini ใช้ไม่ได้ทุกคีย์ ตรวจสอบ GEMINI_API_KEY ใน Variables ของ Railway")
     if not tried:
         reset = quota.next_reset_utc().replace(tzinfo=timezone.utc).astimezone(DISPLAY_TZ)
-        raise AIError(f"โควตาฟรีของ Gemini หมดทุกรุ่นแล้ว จะรีเซ็ตเวลา {reset:%H:%M} น. (" + " / ".join(errors_seen) + ")",
+        raise AIError(f"โควตาฟรีของ Gemini หมด{'ทุกคีย์' if len(keys) > 1 else ''}ทุกรุ่นแล้ว จะรีเซ็ตเวลา {reset:%H:%M} น. (" + " / ".join(errors_seen) + ")",
                       retryable=True)
     raise AIError("Gemini ใช้ไม่ได้ทุกรุ่นตอนนี้ (" + " / ".join(errors_seen) + ") ระบบจะลองใหม่อัตโนมัติ",
                   retryable=True)
 
 
-async def _call_gemini_once(model: str, system: str, parts: list[tuple], schema: dict | None) -> str:
+async def _call_gemini_once(model: str, system: str, parts: list[tuple], schema: dict | None,
+                            key: str = "", slot: int = 1) -> str:
     contents = [
         p[1] if p[0] == "text" else genai_types.Part.from_bytes(data=p[1], mime_type=p[2]) for p in parts
     ]
@@ -302,16 +321,18 @@ async def _call_gemini_once(model: str, system: str, parts: list[tuple], schema:
         automatic_function_calling=genai_types.AutomaticFunctionCallingConfig(disable=True),
     )
     try:
-        response = await _gemini_client().aio.models.generate_content(model=model, contents=contents, config=config)
+        client = _gemini_client(key or quota.gemini_keys()[0])
+        response = await client.aio.models.generate_content(model=model, contents=contents, config=config)
     except genai_errors.APIError as e:
-        quota.record(model, False, str(e.code))
+        quota.record(model, False, str(e.code), slot=slot)
         raise _gemini_error(e) from e
     except (httpx.HTTPError, OSError) as e:
-        quota.record(model, False, "network")
+        quota.record(model, False, "network", slot=slot)
         raise AIError("เชื่อมต่อ Gemini ไม่ได้ ตรวจสอบอินเทอร์เน็ต") from e
     usage = getattr(response, "usage_metadata", None)
     quota.record(model, True, "ok", getattr(usage, "prompt_token_count", 0) or 0,
-                 (getattr(usage, "candidates_token_count", 0) or 0) + (getattr(usage, "thoughts_token_count", 0) or 0))
+                 (getattr(usage, "candidates_token_count", 0) or 0) + (getattr(usage, "thoughts_token_count", 0) or 0),
+                 slot=slot)
 
     text = (response.text or "").strip()
     if not text:
@@ -325,9 +346,9 @@ def _gemini_error(e: "genai_errors.APIError") -> AIError:
     if isinstance(e, genai_errors.ServerError):
         return AIError(f"ขัดข้องชั่วคราว ({e.code})", retryable=True)
     if e.code == 429:
-        return AIError("โควตาฟรีเต็ม (429)", retryable=True)
+        return AIError("โควตาฟรีเต็ม (429)", retryable=True, quota=True)
     if e.code in (400, 401, 403) and "key" in str(e).lower():
-        return AIError("GEMINI_API_KEY ไม่ถูกต้อง")
+        return AIError("คีย์ Gemini ไม่ถูกต้องหรือถูกปิดใช้งาน", bad_key=True)
     if e.code == 404:
         return AIError("ไม่พบโมเดลนี้ (404)", retryable=True)
     return AIError(f"Gemini ตอบกลับผิดพลาด ({e.code}): {e.message}")

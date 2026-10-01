@@ -42,6 +42,7 @@ copy .env.example .env          # macOS/Linux: cp .env.example .env
 | ตัวแปร | ความหมาย |
 |---|---|
 | `GEMINI_API_KEY` | คีย์ Google AI Studio (ฟรี) จาก https://aistudio.google.com/apikey · ค่าเริ่มต้นใช้ Gemini |
+| `GEMINI_API_KEY_2`, `_3`, ... | คีย์สำรอง (ไม่บังคับ) เมื่อคีย์หลักโควตาเต็ม ระบบสลับไปคีย์สำรองอัตโนมัติ · ควรมาจากคนละบัญชี Google |
 | `ANTHROPIC_API_KEY` | (ไม่บังคับ) คีย์ Claude API จาก https://platform.claude.com/ ถ้าจะเลือกโมเดล Claude ซึ่งเสียเงิน |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | บัญชีผู้ดูแลระบบคนแรกของหลังบ้าน (สร้างครั้งแรกที่เปิดโปรแกรม) |
 | `SECRET_KEY` | คีย์เข้ารหัสเซสชัน Telegram และคุกกี้ (เว้นว่างได้ ระบบจะสร้างให้ใน `data/secret.key`) |

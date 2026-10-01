@@ -52,7 +52,7 @@
 {% set qi = quota_info %}
 <section class="panel" id="quota">
   <div class="panel-head">
-    <h2>{{ icon('activity', 16) }} โควตา Gemini วันนี้</h2>
+    <h2>{{ icon('activity', 16) }} โควตา Gemini วันนี้{% if qi.key_count > 1 %} <span class="tag st-resolved">{{ qi.key_count }} คีย์ · สลับอัตโนมัติ</span>{% endif %}</h2>
     <span class="count">รีเซ็ตใน {{ qi.reset_in }} · เวลา {{ qi.reset_at | localtime_hm }} น.</span>
   </div>
   <div class="table-wrap">
@@ -64,7 +64,15 @@
         <td class="nowrap"><span class="mono small">{{ r.model }}</span>
           {% if r.selected %}<span class="tag st-resolved">รุ่นหลัก</span>{% else %}<span class="tag">สำรอง</span>{% endif %}</td>
         <td>
-          {% if r.limit %}
+          {% if r.key_rows | length > 1 %}
+            {% for k in r.key_rows %}
+              <div class="qkey">
+                <span class="qkey-label small {{ 'muted' if k.slot > 1 }}">{{ k.label }}</span>
+                {% if k.limit %}<div class="qbar {{ k.level }}"><span style="width: {{ k.pct }}%"></span></div>{% endif %}
+                <span class="small muted nowrap">{{ k.used }}{% if k.limit %} / {{ k.limit }}{% endif %}{% if k.failed %} · ล้มเหลว {{ k.failed }}{% endif %}</span>
+              </div>
+            {% endfor %}
+          {% elif r.limit %}
             <div class="qbar {{ r.level }}"><span style="width: {{ r.pct }}%"></span></div>
             <div class="small muted">{{ r.used }} / {{ r.limit }} ครั้ง ({{ r.pct }}%){% if r.failed %} · ล้มเหลว {{ r.failed }}{% endif %}</div>
           {% else %}<span class="small">{{ r.used }} ครั้ง (ไม่ได้ตั้งเพดาน)</span>{% endif %}
@@ -72,7 +80,16 @@
         <td class="num center"><b class="{{ 'error-text' if r.limit and not r.left }}">{{ r.left if r.limit else '—' }}</b></td>
         <td class="num center small">{{ r.per_min }}{% if r.rpm %}/{{ r.rpm }}{% endif %}</td>
         <td class="shrink small">
-          {% if r.limit and not r.left %}<span class="state bad"><span class="dot off"></span>หมดแล้ว</span>
+          {% if r.key_rows | length > 1 %}
+            {% for k in r.key_rows %}
+              <div class="qkey-state">
+              {% if k.limit and not k.left %}<span class="state bad"><span class="dot off"></span>{{ k.label }} หมดแล้ว</span>
+              {% elif not k.ready %}<span class="state warn" title="{{ k.why }}"><span class="dot wait"></span>{{ k.label }} พักชั่วคราว</span>
+              {% elif k.last_429 %}<span class="state warn"><span class="dot wait"></span>{{ k.label }} Google แจ้งเต็ม {{ k.last_429 | localtime_hm }}</span>
+              {% else %}<span class="state ok"><span class="dot live"></span>{{ k.label }} พร้อมใช้</span>{% endif %}
+              </div>
+            {% endfor %}
+          {% elif r.limit and not r.left %}<span class="state bad"><span class="dot off"></span>หมดแล้ว</span>
           {% elif r.last_429 %}<span class="state warn"><span class="dot wait"></span>Google แจ้งเต็ม {{ r.last_429 | localtime_hm }}</span>
           {% elif r.level in ('high', 'mid') %}<span class="state warn"><span class="dot wait"></span>ใกล้หมด</span>
           {% else %}<span class="state ok"><span class="dot live"></span>พร้อมใช้</span>{% endif %}

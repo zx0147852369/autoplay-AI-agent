@@ -640,3 +640,9 @@ a.strip-cell:hover .cicon { transform: translateY(-2px) scale(1.08); }
 .cd-actions button { min-width: 96px; }
 button.danger-solid { background: var(--red); color: #fff; border-color: #96200f; }
 button.danger-solid:hover { background: #96200f; border-color: #96200f; }
+
+/* ---------- โควตาแยกตามคีย์ ---------- */
+.qkey { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.qkey + .qkey { margin-top: 6px; }
+.qkey .qbar { margin: 0; }
+.qkey-state + .qkey-state { margin-top: 6px; }

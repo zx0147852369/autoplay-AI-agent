@@ -161,6 +161,7 @@ class AiUsage(Base):
     model: Mapped[str] = mapped_column(String(64), index=True)
     ok: Mapped[bool] = mapped_column(Boolean, default=True)
     code: Mapped[str] = mapped_column(String(16), default="ok")  # ok / 429 / 503 / ...
+    key_slot: Mapped[int] = mapped_column(Integer, default=1, server_default="1")  # คีย์ Gemini ลำดับที่ (1 = หลัก)
     input_tokens: Mapped[int] = mapped_column(Integer, default=0)
     output_tokens: Mapped[int] = mapped_column(Integer, default=0)
 

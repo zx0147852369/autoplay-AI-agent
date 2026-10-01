@@ -269,7 +269,7 @@ def local_day_start_utc():
 
 def model_key_ready(model: str) -> bool:
     if ai_service.is_gemini(model):
-        return bool(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"))
+        return bool(quota.gemini_keys())
     return bool(os.getenv("ANTHROPIC_API_KEY"))
 
 
@@ -314,7 +314,12 @@ async def dashboard(request: Request):
         ("Telegram", telegram.connected, account.me_name or "ยังไม่ได้เชื่อมต่อ"),
         ("โมเดล AI", model_key_ready(model), model_label + ("" if model_key_ready(model) else " · ยังไม่มี API key")
          + (f" · ตอนนี้ใช้รุ่นสำรอง {ai_service.last_model_used} (รุ่นหลักล่มชั่วคราว)"
-            if ai_service.last_model_used and ai_service.last_model_used != model else "")),
+            if ai_service.last_model_used and ai_service.last_model_used != model else "")
+         + (f" · ตอนนี้ใช้{quota.slot_label(ai_service.last_key_slot)} (คีย์หลักโควตาเต็ม)"
+            if ai_service.is_gemini(model) and ai_service.last_key_slot > 1 else "")),
+        ("คีย์ Gemini", len(quota.gemini_keys()) > 1 or not ai_service.is_gemini(model),
+         (f"{len(quota.gemini_keys())} คีย์ (หลัก + สำรอง {len(quota.gemini_keys()) - 1})" if len(quota.gemini_keys()) > 1
+          else "คีย์เดียว ยังไม่มีคีย์สำรอง (เพิ่ม GEMINI_API_KEY_2 ใน Railway)" if quota.gemini_keys() else "ยังไม่ได้ตั้ง")),
         ("การเก็บข้อมูล", not EPHEMERAL_STORAGE, "ถาวร (Volume)" if not EPHEMERAL_STORAGE else "ชั่วคราว หายเมื่อ deploy"),
         ("กลุ่มโปรแกรมเมอร์", bool(dev_title) and not dev_bridge.last_error,
          dev_bridge.last_error or dev_title or "ยังไม่ได้เลือกกลุ่ม (ตั้งค่า → กลุ่มแจ้งปัญหาโปรแกรมเมอร์)"),
@@ -1018,7 +1023,9 @@ async def settings_page(request: Request):
     suggested = next((g for g in groups if "autopay support" in g.title.lower()), None)
     return render(request, "settings.html", user, settings=settings, users=users, groups=groups, suggested=suggested,
                   limits=quota.limits(settings),
-                  has_gemini_key=bool(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")),
+                  has_gemini_key=bool(quota.gemini_keys()),
+                  gemini_keys=[(quota.slot_label(i), quota.mask_key(k), k in ai_service._bad_keys)
+                               for i, k in enumerate(quota.gemini_keys(), 1)],
                   has_claude_key=bool(os.getenv("ANTHROPIC_API_KEY")))
 
 

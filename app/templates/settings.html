@@ -94,9 +94,19 @@
           </select>
         </label>
         <div class="key-status">
-          <span><span class="dot {{ 'live' if has_gemini_key else 'off' }}"></span> <code>GEMINI_API_KEY</code> {{ 'ตั้งค่าแล้ว' if has_gemini_key else 'ยังไม่ได้ตั้ง' }}</span>
+          {% for label, masked, bad in gemini_keys %}
+            <span><span class="dot {{ 'off' if bad else 'live' }}"></span> <code>{{ 'GEMINI_API_KEY' if loop.first else 'GEMINI_API_KEY_' ~ loop.index }}</code>
+              {{ label }} <span class="mono muted">{{ masked }}</span>{% if bad %} <span class="error-text">· Google แจ้งว่าคีย์ใช้ไม่ได้</span>{% endif %}</span>
+          {% else %}
+            <span><span class="dot off"></span> <code>GEMINI_API_KEY</code> ยังไม่ได้ตั้ง</span>
+          {% endfor %}
+          {% if gemini_keys | length == 1 %}
+            <span><span class="dot wait"></span> <code>GEMINI_API_KEY_2</code> ยังไม่มีคีย์สำรอง</span>
+          {% endif %}
           <span><span class="dot {{ 'live' if has_claude_key else 'off' }}"></span> <code>ANTHROPIC_API_KEY</code> {{ 'ตั้งค่าแล้ว' if has_claude_key else 'ยังไม่ได้ตั้ง' }}</span>
         </div>
+        <p class="hint" style="margin:6px 0 0">คีย์สำรอง: เพิ่ม <code>GEMINI_API_KEY_2</code>, <code>GEMINI_API_KEY_3</code> ใน Variables ของ Railway
+          เมื่อคีย์หลักโควตาเต็ม ระบบจะสลับไปใช้คีย์สำรองกับรุ่นเดิมก่อน แล้วค่อยลดไปรุ่นอื่น · ควรสร้างคีย์จากคนละบัญชี Google เพราะโควตาฟรีนับต่อโปรเจกต์</p>
         {% if settings.ai_model.startswith('gemini') and not has_gemini_key %}
           <div class="note error">โมเดลที่เลือกต้องใช้ <code>GEMINI_API_KEY</code> สร้างฟรีที่ <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> แล้วใส่ใน Variables ของ Railway</div>
         {% elif settings.ai_model.startswith('claude') and not has_claude_key %}
