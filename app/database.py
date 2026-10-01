@@ -9,6 +9,7 @@ from sqlalchemy import (
     String,
     Text,
     create_engine,
+    event,
     inspect,
     select,
     text,
@@ -17,10 +18,23 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship,
 
 from .config import DATABASE_URL
 
+IS_SQLITE = DATABASE_URL.startswith("sqlite")
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
+    # timeout = รอ lock ของ SQLite สูงสุดกี่วินาที (ค่าเดิม 5 วินาที ระหว่างรอทั้งเว็บจะค้าง)
+    connect_args={"check_same_thread": False, "timeout": 2} if IS_SQLITE else {},
 )
+
+
+if IS_SQLITE:
+    @event.listens_for(engine, "connect")
+    def _sqlite_pragmas(dbapi_conn, _record):
+        # WAL: อ่านและเขียนพร้อมกันได้ ไม่บล็อกกัน / NORMAL: เขียนเร็วขึ้นแต่ยังปลอดภัยกับ WAL
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA synchronous=NORMAL")
+        cur.execute("PRAGMA busy_timeout=2000")
+        cur.close()
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 

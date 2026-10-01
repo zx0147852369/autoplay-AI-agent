@@ -82,14 +82,44 @@ async def lifespan(app: FastAPI):
     dev_bridge.configure()
     startup = asyncio.create_task(telegram.start_from_db())
     sweeper = asyncio.create_task(analyzer.sweeper())
+    lag_watch = asyncio.create_task(_watch_loop_lag())
     yield
     startup.cancel()
     sweeper.cancel()
+    lag_watch.cancel()
     await telegram.stop()
 
 
 app = FastAPI(title="Telegram AI Support", lifespan=lifespan)
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, same_site="lax", max_age=60 * 60 * 12)
+
+# ---------------------------------------------------------------- วัดความเร็ว (ใช้หาสาเหตุเว็บช้า)
+_loop_lag = {"max": 0.0, "since": time.monotonic()}
+
+
+async def _watch_loop_lag() -> None:
+    """ทุก 0.5 วินาที วัดว่า event loop ค้างนานเท่าไร (ถ้ามีงานแบบ sync บล็อก ทั้งเว็บจะช้าตาม)"""
+    while True:
+        start = time.monotonic()
+        await asyncio.sleep(0.5)
+        lag = time.monotonic() - start - 0.5
+        if time.monotonic() - _loop_lag["since"] > 60:
+            _loop_lag.update(max=0.0, since=time.monotonic())
+        _loop_lag["max"] = max(_loop_lag["max"], lag)
+        if lag > 1:
+            log.warning("event loop ค้าง %.1f วินาที", lag)
+
+
+@app.middleware("http")
+async def _timing(request: Request, call_next):
+    started = time.perf_counter()
+    response = await call_next(request)
+    ms = (time.perf_counter() - started) * 1000
+    # app = เวลาที่ระบบใช้จริง, lag = event loop ค้างสูงสุดใน 1 นาทีล่าสุด (ดูได้ใน DevTools > Network > Timing)
+    response.headers["Server-Timing"] = f"app;dur={ms:.0f}, lag;dur={_loop_lag['max'] * 1000:.0f}"
+    if ms > 1000:
+        log.warning("ช้า %s %s %.0f ms", request.method, request.url.path, ms)
+    return response
 app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=APP_DIR / "templates")
 
