@@ -323,8 +323,48 @@ a.tag:hover { text-decoration: none; border-color: var(--line-2); }
 .reply-body.single { display: block; }
 @media (max-width: 900px) { .reply-body { grid-template-columns: 1fr; } .reply-body > div + div { border-left: 0; border-top: 1px solid var(--line); } }
 .composer textarea { min-height: 120px; }
-.dev-approval { border-left: 3px solid var(--blue); }
-.dev-approval .composer textarea { font-size: 0.86rem; line-height: 1.55; }
+.reply-head .who { display: flex; align-items: center; gap: 7px; }
+
+/* ---------- กล่องรออนุมัติ: ตอบลูกค้า / ส่งเข้ากลุ่มโปรแกรมเมอร์ ---------- */
+.boxtabs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.boxtab {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px;
+  padding: 12px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); color: var(--ink);
+}
+.boxtab:hover { text-decoration: none; border-color: var(--line-2); }
+.boxtab.active { border-color: var(--pine); box-shadow: inset 0 0 0 1px var(--pine); background: #fbfefc; }
+.boxtab.dev.active { border-color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); background: #fbfcff; }
+.boxtab-ic { width: 42px; height: 42px; border-radius: 11px; display: grid; place-items: center; background: var(--surface-2); border: 1px solid var(--line); }
+.boxtab-text { display: flex; flex-direction: column; min-width: 0; }
+.boxtab-text strong { font-weight: 600; }
+.boxtab-text small { color: var(--muted); font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.boxtab-count { font-family: var(--mono); font-size: 1.3rem; min-width: 36px; text-align: center; padding: 2px 8px; border-radius: 99px; background: var(--grey-tint); color: var(--muted); }
+.boxtab-count.hot { background: var(--red-tint); color: var(--red); }
+@media (max-width: 700px) { .boxtabs { grid-template-columns: 1fr; } }
+
+.dticket { padding: 0; overflow: hidden; border-left: 3px solid var(--blue); }
+.dt-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+.dt-id { font-family: var(--mono); font-weight: 600; font-size: 0.95rem; color: var(--blue); background: var(--blue-tint); border-radius: var(--r); padding: 4px 9px; }
+.dt-title { flex: 1; min-width: 200px; display: flex; flex-direction: column; }
+.dt-title strong { font-size: 1.02rem; font-weight: 600; line-height: 1.35; }
+.dt-title span { color: var(--muted); font-size: 0.8rem; }
+.dt-body { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); }
+.dt-body > div { padding: 16px 18px; min-width: 0; }
+.dt-msg { border-left: 1px solid var(--line); background: var(--surface-2); }
+.dt-msg-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.dt-summary { margin: 0 0 14px; font-size: 0.9rem; line-height: 1.6; color: var(--ink-2); }
+.tg-bubble {
+  white-space: pre-wrap; word-break: break-word; font-size: 0.88rem; line-height: 1.6;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 4px 12px 12px 12px; padding: 12px 14px;
+}
+.dt-msg textarea { width: 100%; font-size: 0.86rem; line-height: 1.55; }
+.dt-foot { display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-top: 1px solid var(--line); background: var(--surface-2); flex-wrap: wrap; }
+.dt-hint { flex: 1; min-width: 180px; }
+.site-pill { display: inline-flex; align-items: center; gap: 5px; margin-left: 6px; font-size: 0.78rem; padding: 1px 8px; border-radius: 99px; background: var(--grey-tint); }
+.site-pill.up { background: var(--pine-tint); color: var(--pine); }
+.site-pill.moved { background: var(--amber-tint); color: var(--amber); }
+.site-pill.down { background: var(--red-tint); color: var(--red); }
+@media (max-width: 900px) { .dt-body { grid-template-columns: 1fr; } .dt-msg { border-left: 0; border-top: 1px solid var(--line); } }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .actions.end { justify-content: flex-end; }
 .tools { display: flex; gap: 10px; padding: 10px 18px; border-top: 1px solid var(--line); background: var(--surface-2); flex-wrap: wrap; }

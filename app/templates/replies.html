@@ -23,52 +23,85 @@
 </nav>
 
 {% if status == 'pending' %}
+<nav class="boxtabs">
+  <a class="boxtab {{ 'active' if box == 'customer' }}" href="/replies?box=customer">
+    <span class="boxtab-ic">{{ cicon('chat', 24) }}</span>
+    <span class="boxtab-text"><strong>ตอบลูกค้า</strong><small>ข้อความที่จะส่งในแชทของลูกค้า</small></span>
+    <span class="boxtab-count {{ 'hot' if replies }}">{{ replies | length }}</span>
+  </a>
+  <a class="boxtab dev {{ 'active' if box == 'dev' }}" href="/replies?box=dev">
+    <span class="boxtab-ic">{{ cicon('wrench', 24) }}</span>
+    <span class="boxtab-text"><strong>ส่งเข้ากลุ่มโปรแกรมเมอร์</strong><small>Ticket ที่จะโพสต์ใน {{ dev_group_title }}</small></span>
+    <span class="boxtab-count {{ 'hot' if dev_queue }}">{{ dev_queue | length }}</span>
+  </a>
+</nav>
+
+{% if box == 'dev' %}
   {% for item in dev_queue %}
   {% set t = item.ticket %}
-  <article class="card reply dev-approval">
-    <header class="reply-head">
-      <span class="who">Ticket #{{ t.id }} · {{ t.title }}</span>
-      <span class="when">{{ t.created_at | localtime }}</span>
-      <a class="tag" href="/tickets/{{ t.id }}">ดู ticket</a>
-      <span class="tag st-in_progress">ส่งเข้า {{ dev_group_title }}</span>
+  {% set sc = t.site_check | fromjson %}
+  <article class="card dticket">
+    <header class="dt-head">
+      <span class="dt-id">#{{ t.id }}</span>
+      <div class="dt-title">
+        <strong>{{ t.title }}</strong>
+        <span>{{ CATEGORIES.get(t.category, t.category) }} · {{ t.created_at | localtime }}</span>
+      </div>
+      <span class="tag sev-{{ t.severity }}">{{ SEVERITY_LABELS[t.severity] }}</span>
+      <a class="btn sm" href="/tickets/{{ t.id }}">{{ icon('external', 13) }} ดู ticket</a>
     </header>
-    <div class="reply-body">
-      <div>
-        <p class="section-title">ข้อมูล ticket</p>
+    <div class="dt-body">
+      <div class="dt-info">
         <dl class="facts small">
           <dt>ลูกค้า</dt><dd>{{ t.customer_name or '-' }}</dd>
           <dt>แชท</dt><dd>{{ chat_titles.get(t.chat_id, t.chat_id) }}</dd>
-          <dt>ความรุนแรง</dt><dd><span class="tag sev-{{ t.severity }}">{{ SEVERITY_LABELS[t.severity] }}</span></dd>
+          <dt>เว็บไซต์</dt><dd>
+            {% if t.website_url %}
+              {% set state = '' if not sc else ('down' if not sc.ok else ('moved' if sc.other_host else 'up')) %}
+              <span class="mono">{{ t.website_url }}</span>
+              {% if state %}<span class="site-pill {{ state }}"><span class="dot {{ {'up': 'live', 'moved': 'wait', 'down': 'off'}[state] }}"></span>{{ {'up': 'เข้าได้', 'moved': 'ถูกพาไปโดเมนอื่น', 'down': 'เข้าไม่ได้'}[state] }}</span>{% endif %}
+            {% else %}<span class="muted">ยังไม่มีลิงก์</span>{% endif %}</dd>
         </dl>
+        <p class="section-title">สรุปปัญหา</p>
+        <p class="dt-summary">{{ t.summary or '-' }}</p>
         {% if item.photos %}
           <p class="section-title">รูปที่จะแนบ ({{ item.photos | length }})</p>
           <div class="tl-pics">{% for p in item.photos %}<a href="/media/{{ p }}" target="_blank"><img src="/media/{{ p }}" alt="รูปจากลูกค้า"></a>{% endfor %}</div>
         {% endif %}
       </div>
-      <div class="stack">
-        <form method="post" action="/tickets/{{ t.id }}/post-dev" class="stack composer">
-          <input type="hidden" name="next" value="/replies">
-          <label class="field">ข้อความที่จะโพสต์ในกลุ่ม
-            <textarea name="text" rows="9" required>{{ item.text }}</textarea></label>
-          <div class="actions end">
-            <button class="go" onclick="return confirm('ส่ง ticket นี้เข้ากลุ่มโปรแกรมเมอร์?')">{{ icon('send', 15) }} อนุมัติและส่งเข้ากลุ่ม</button>
-          </div>
-        </form>
+      <div class="dt-msg">
+        <div class="dt-msg-head">
+          <span class="section-title" style="margin:0">ข้อความที่จะโพสต์ในกลุ่ม</span>
+          <button type="button" class="sm ghost" onclick="toggleEdit(this)">{{ icon('edit', 13) }} <span>แก้ไขข้อความ</span></button>
+        </div>
+        <div class="tg-bubble">{{ item.text }}</div>
+        <textarea name="text" form="post-{{ t.id }}" rows="13" hidden>{{ item.text }}</textarea>
       </div>
     </div>
-    <div class="tools">
-      <span class="muted small" style="flex:1">ส่งแล้วโปรแกรมเมอร์ reply โพสต์นี้เพื่ออัปเดตสถานะได้</span>
+    <footer class="dt-foot">
       <form method="post" action="/tickets/{{ t.id }}/skip-dev">
-        <input type="hidden" name="next" value="/replies">
+        <input type="hidden" name="next" value="/replies?box=dev">
         <button class="danger">ไม่ส่งเข้ากลุ่ม</button>
       </form>
-    </div>
+      <span class="muted small dt-hint">หลังส่งแล้ว โปรแกรมเมอร์ reply โพสต์นี้เพื่ออัปเดตสถานะได้</span>
+      <form method="post" action="/tickets/{{ t.id }}/post-dev" id="post-{{ t.id }}">
+        <input type="hidden" name="next" value="/replies?box=dev">
+        <button class="go" onclick="return confirm('ส่ง Ticket #{{ t.id }} เข้ากลุ่มโปรแกรมเมอร์?')">{{ icon('send', 15) }} อนุมัติและส่งเข้ากลุ่ม</button>
+      </form>
+    </footer>
   </article>
+  {% else %}
+  <section class="panel">
+    <table class="grid-table"><tbody>
+      <tr class="empty-row"><td>{{ icon('inbox', 24) }}<strong>ไม่มี ticket รอส่งเข้ากลุ่มโปรแกรมเมอร์</strong>ticket ใหม่ที่ต้องอนุมัติก่อนส่งจะเข้ามาที่นี่</td></tr>
+    </tbody></table>
+  </section>
   {% endfor %}
+{% else %}
   {% for r in replies %}
   <article class="card reply">
     <header class="reply-head">
-      <span class="who">{{ chat_titles.get(r.chat_id, r.chat_id) }}</span>
+      <span class="who">{{ icon('chat', 15) }} {{ chat_titles.get(r.chat_id, r.chat_id) }}</span>
       <span class="when">{{ r.created_at | localtime }}</span>
       {% if r.ticket_id %}<a class="tag" href="/tickets/{{ r.ticket_id }}">ticket #{{ r.ticket_id }}</a>{% endif %}
       {% if r.kind == 'resolved' %}<span class="tag st-resolved">{{ icon('check', 12) }} แจ้งแก้ไขเสร็จ</span>{% endif %}
@@ -112,14 +145,13 @@
     </div>
   </article>
   {% else %}
-  {% if not dev_queue %}
   <section class="panel">
     <table class="grid-table"><tbody>
-      <tr class="empty-row"><td>{{ icon('inbox', 24) }}<strong>ไม่มีข้อความรออนุมัติ</strong>ร่างคำตอบใหม่จะเข้ามาที่นี่เมื่อลูกค้าส่งข้อความในแชทที่ติดตาม</td></tr>
+      <tr class="empty-row"><td>{{ icon('inbox', 24) }}<strong>ไม่มีข้อความตอบลูกค้ารออนุมัติ</strong>ร่างคำตอบใหม่จะเข้ามาที่นี่เมื่อลูกค้าส่งข้อความในแชทที่ติดตาม</td></tr>
     </tbody></table>
   </section>
-  {% endif %}
   {% endfor %}
+{% endif %}
 {% else %}
   <section class="panel">
     <div class="panel-head">
@@ -159,6 +191,16 @@
 {% block scripts %}
 {% if status == 'pending' %}
 <script>
+  // สลับดูตัวอย่าง / แก้ไขข้อความที่จะโพสต์เข้ากลุ่ม
+  function toggleEdit(btn) {
+    const box = btn.closest('.dt-msg');
+    const bubble = box.querySelector('.tg-bubble'), area = box.querySelector('textarea');
+    const editing = area.hidden;
+    if (!editing) bubble.textContent = area.value;
+    area.hidden = !editing; bubble.hidden = editing;
+    btn.querySelector('span').textContent = editing ? 'ดูตัวอย่าง' : 'แก้ไขข้อความ';
+    if (editing) area.focus();
+  }
   // รีเฟรชเมื่อมีร่างใหม่ (ถ้าไม่ได้กำลังพิมพ์อยู่)
   let known = null;
   setInterval(async () => {

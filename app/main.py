@@ -506,7 +506,7 @@ async def chat_detail(request: Request, chat_id: int):
 
 # ---------------------------------------------------------------- replies (approval queue)
 @app.get("/replies")
-async def replies_page(request: Request, status: str = "pending"):
+async def replies_page(request: Request, status: str = "pending", box: str = ""):
     user = current_user(request, "agent")
     with SessionLocal() as db:
         query = select(Reply).order_by(Reply.created_at.desc()).limit(100)
@@ -528,8 +528,10 @@ async def replies_page(request: Request, status: str = "pending"):
                 ))[::-1]
     status_counts["all"] = sum(status_counts.values())
     status_counts["pending"] = status_counts.get("pending", 0) + len(dev_queue)
+    if box not in ("customer", "dev"):
+        box = "dev" if dev_queue and not (status == "pending" and replies) else "customer"
     return render(request, "replies.html", user, replies=replies, status=status, chat_titles=chat_titles,
-                  context=context, status_counts=status_counts, dev_queue=dev_queue,
+                  context=context, status_counts=status_counts, dev_queue=dev_queue, box=box,
                   dev_group_title=chat_titles.get(telegram.dev_group_id, "กลุ่มโปรแกรมเมอร์"))
 
 
