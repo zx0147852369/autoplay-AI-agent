@@ -19,7 +19,7 @@ from markupsafe import Markup, escape
 from sqlalchemy import func, select
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import ai_service, analyzer, dev_bridge, quota
+from . import ai_service, analyzer, dev_bridge, quota, sysinfo
 from .config import ADMIN_PASSWORD, ADMIN_USERNAME, DATA_DIR, DISPLAY_TZ, EPHEMERAL_STORAGE, MEDIA_DIR, SECRET_KEY
 from .database import (
     DEFAULT_SETTINGS,
@@ -403,8 +403,14 @@ async def dashboard(request: Request):
                   by_status=by_status, recent=recent, pending_list=pending_list, monitored=monitored,
                   chat_titles=chat_titles, ai_errors=analyzer.last_error, connected=telegram.connected,
                   today=thai_today(), today_counts=today, setup=setup, system=system,
-                  quota_info=quota.snapshot(settings),
+                  quota_info=quota.snapshot(settings), sysinfo=sysinfo.snapshot(),
                   setup_done=sum(1 for item in setup if item[1]))
+
+
+@app.get("/api/sysinfo")
+async def api_sysinfo(request: Request):
+    current_user(request, "agent")
+    return JSONResponse(sysinfo.snapshot())
 
 
 @app.get("/api/badge")

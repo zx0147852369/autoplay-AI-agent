@@ -841,4 +841,13 @@ img.avatar.logo { object-fit: cover; background: #fff; border: 1px solid var(--l
 .sidebar-foot .user-meta small, .sidebar-foot .user-meta strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sidebar-foot .icon-btn { width: 28px; height: 28px; flex-shrink: 0; }
 
+/* ---------- ทรัพยากรเครื่อง ---------- */
+.resrows { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; padding: 16px 2px 4px; }
+.resrow-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 6px; font-size: 0.9rem; }
+.resrow-head b { font-family: var(--mono); font-weight: 600; white-space: nowrap; }
+.resrow .qbar { margin: 0 0 5px; }
+.qbar.warn span { background: #e8590c; }
+.qbar.bad span { background: var(--red); }
+.resmeta .facts { grid-template-columns: 150px 1fr; margin: 0; }
+@media (max-width: 760px) { .resrows { grid-template-columns: 1fr; gap: 14px; } }
 
