@@ -636,6 +636,9 @@ a.strip-cell:hover .cicon { transform: translateY(-2px) scale(1.08); }
   max-height: 220px; overflow: auto; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--line);
   border-radius: 4px 10px 10px 10px;
 }
+.cdialog.wide { width: min(720px, calc(100vw - 32px)); }
+.cdialog.wide .cd-body { padding: 24px 26px 20px; }
+.cdialog.wide .cd-preview { max-height: min(58vh, 560px); font-size: 0.95rem; line-height: 1.65; padding: 14px 16px; }
 .cd-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 22px; background: var(--surface-2); border-top: 1px solid var(--line); }
 .cd-actions button { min-width: 96px; }
 button.danger-solid { background: var(--red); color: #fff; border-color: #96200f; }

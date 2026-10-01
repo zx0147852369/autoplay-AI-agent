@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=34">
+  <link rel="stylesheet" href="/static/style.css?v=35">
 </head>
 <body>
 {% if user %}
@@ -126,6 +126,7 @@
     document.getElementById('cdMsg').textContent = o.message || '';
     const pv = document.getElementById('cdPreview');
     pv.hidden = !o.preview; pv.textContent = o.preview || '';
+    cd.classList.toggle('wide', !!o.preview);  // มีตัวอย่างข้อความ -> กล่องใหญ่ขึ้นให้อ่านง่าย
     const ok = document.getElementById('cdOk');
     ok.textContent = o.ok || 'ตกลง';
     ok.className = CD_OK[tone] || 'primary';
