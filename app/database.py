@@ -236,6 +236,7 @@ DEFAULT_SETTINGS = {
     # กลุ่มโปรแกรมเมอร์ (เช่น Autopay Support): ส่ง ticket เข้ากลุ่ม และอ่านข้อความโปรแกรมเมอร์
     "dev_group_id": "",
     "dev_usernames": "yuopa9",
+    "staff_usernames": "",  # ทีมงานคนอื่นในกลุ่มลูกค้า คั่นด้วยจุลภาค
     "dev_forward": "1",
     "dev_watch": "1",
 }

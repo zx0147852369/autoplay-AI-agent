@@ -59,6 +59,7 @@ SYSTEM_INSTRUCTIONS = f"""คุณคือผู้ช่วยทีมซั
 - ถ้าเป็นการแจ้งปัญหา ให้รับเรื่อง แจ้งว่าส่งต่อทีมงานแล้ว และขอข้อมูลที่ยังขาด (เช่น ยูสเซอร์ สลิป ภาพหน้าจอ ลิงก์เว็บ)
 - ถ้าลูกค้าแจ้งปัญหาแต่ในบทสนทนายังไม่มีลิงก์เว็บไซต์ที่เกิดปัญหา ต้องขอลิงก์เว็บไซต์จากลูกค้าใน reply_text ด้วยเสมอ
 - ถ้าข้อความใหม่ไม่ต้องตอบ (เช่น ขอบคุณ สติกเกอร์ ลูกค้าคุยกันเอง หรือทีมงานตอบไปแล้ว) ให้ needs_reply=false และ reply_text เป็นค่าว่าง
+- ข้อความที่ติด [ทีมงาน] คือทีมงานของเรา ไม่ใช่ลูกค้า
 - reply_to_message_id คือเลข # ของข้อความลูกค้าที่ควรตอบกลับ (0 ถ้าไม่ต้องอ้างอิง)
 
 2) วิเคราะห์ว่าลูกค้าแจ้งปัญหาหรือไม่ แล้วสรุปเป็น ticket ให้โปรแกรมเมอร์
@@ -375,10 +376,13 @@ async def analyze_chat(
     history: list[Message],
     new_messages: list[Message],
     open_tickets: list[Ticket],
+    rejected: list[str] | None = None,
 ) -> Analysis:
     transcript = format_transcript(chat_title, history, {m.id for m in new_messages})
     parts = [
         ("text", _open_tickets_text(open_tickets)),
+        *([("text", "ร่างคำตอบที่แอดมินปฏิเสธไปแล้ว ห้ามร่างเนื้อหาเดิมซ้ำ ถ้าไม่มีเรื่องใหม่จากลูกค้าให้ needs_reply=false:\n"
+                     + "\n".join(f"- {r}" for r in rejected))] if rejected else []),
         ("text", "บทสนทนา:\n" + transcript),
         *_image_parts(new_messages),
         ("text", "วิเคราะห์ข้อความ [ใหม่] ตามคำแนะนำ แล้วตอบเป็น JSON ตาม schema"),

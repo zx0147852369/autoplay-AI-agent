@@ -5,10 +5,13 @@ import json
 import logging
 import re
 import time
+from datetime import timedelta
+from difflib import SequenceMatcher
 
 from sqlalchemy import func, select
 
 from . import ai_service, dev_bridge
+from .telegram_service import STICKER_TEXT
 from .database import (
     Chat, Message, Reply, SessionLocal, Ticket, TicketAttachment, TicketEvent, get_settings, int_setting, utcnow,
 )
@@ -122,10 +125,16 @@ async def analyze(chat_id: int) -> str:
         if settings.get("auto_draft") != "1" and settings.get("auto_ticket") != "1":
             _mark_analyzed(new_messages)
             return "ปิดการทำงานอัตโนมัติไว้"
+        customer_new = [m for m in new_messages if not m.is_outgoing]
+        if all(not m.media_path and (m.text or "").strip() in ("", STICKER_TEXT) for m in customer_new):
+            _mark_analyzed(new_messages)  # มีแต่สติกเกอร์ / ข้อความว่าง ไม่ต้องเรียก AI
+            return "มีแต่สติกเกอร์ ไม่ต้องวิเคราะห์"
+        rejected = recent_rejected(chat_id)
 
         try:
             result = await ai_service.analyze_chat(
-                settings, chat.title if chat else str(chat_id), history, new_messages, open_tickets
+                settings, chat.title if chat else str(chat_id), history, new_messages, open_tickets,
+                rejected=[r for r, _ in rejected],
             )
         except ai_service.AIError as e:
             last_error[chat_id] = str(e)
@@ -144,6 +153,10 @@ async def analyze(chat_id: int) -> str:
             else:
                 result.needs_reply, result.reply_text = True, ASK_LINK_FULL
             result.note_for_admin = (result.note_for_admin + " · ระบบขอลิงก์เว็บไซต์จากลูกค้า").strip(" ·")
+        similar = next((text for text, _ in rejected if is_similar(result.reply_text, text)), None)
+        if result.needs_reply and similar:
+            log.info("ไม่สร้างร่างซ้ำกับที่แอดมินปฏิเสธไปแล้วในแชท %s", chat_id)
+            result.needs_reply = False
         if result.needs_reply and result.reply_text.strip() and (settings.get("auto_draft") == "1" or ask_link):
             _save_draft(chat_id, result, new_messages, ticket_id)
         _mark_analyzed(new_messages)
@@ -154,6 +167,25 @@ async def analyze(chat_id: int) -> str:
         if result.needs_reply:
             parts.append("สร้างร่างคำตอบแล้ว")
         return ", ".join(parts) or "ไม่ต้องตอบ / ไม่ใช่การแจ้งปัญหา"
+
+
+REJECT_MEMORY_HOURS = 24
+SIMILAR_RATIO = 0.6
+
+
+def recent_rejected(chat_id: int) -> list[tuple[str, str]]:
+    """ร่างที่แอดมินปฏิเสธในแชทนี้ภายใน 24 ชม. -> [(ข้อความ, เหตุผล)]"""
+    since = utcnow() - timedelta(hours=REJECT_MEMORY_HOURS)
+    with SessionLocal() as db:
+        rows = db.execute(select(Reply.final_text, Reply.reject_reason).where(
+            Reply.chat_id == chat_id, Reply.status == "rejected", Reply.decided_at >= since
+        ).order_by(Reply.decided_at.desc()).limit(5)).all()
+    return [(text or "", reason or "") for text, reason in rows]
+
+
+def is_similar(a: str, b: str) -> bool:
+    a, b = re.sub(r"\s+", " ", a or "").strip(), re.sub(r"\s+", " ", b or "").strip()
+    return bool(a and b) and SequenceMatcher(None, a, b).ratio() >= SIMILAR_RATIO
 
 
 def find_site_url(messages: list[Message]) -> str:

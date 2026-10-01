@@ -46,6 +46,7 @@ def configure() -> None:
     with SessionLocal() as db:
         settings = get_settings(db)
     telegram.set_dev(settings.get("dev_group_id"), settings.get("dev_usernames", ""))
+    telegram.set_staff(settings.get("staff_usernames", ""))
     telegram.on_dev_message = _schedule
     telegram.on_connected = on_telegram_connected
 

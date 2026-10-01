@@ -53,6 +53,9 @@
           {% if not settings.dev_group_id and suggested %}<span class="hint">เลือก "{{ suggested.title }}" ให้แล้ว กดบันทึกเพื่อใช้งาน</span>
           {% elif not groups %}<span class="hint">ยังไม่มีรายชื่อกลุ่ม ไปที่หน้าแชทลูกค้าแล้วกด "ดึงรายชื่อแชทจาก Telegram"</span>{% endif %}
         </label>
+        <label class="field">ชื่อผู้ใช้ Telegram ของทีมงานในกลุ่มลูกค้า
+          <input name="staff_usernames" value="{{ settings.staff_usernames }}" placeholder="Prime2499, admin2">
+          <span class="hint">คนที่ไม่ใช่ลูกค้า เช่น แอดมินคนอื่น ข้อความของคนเหล่านี้จะไม่ถูกวิเคราะห์และไม่ทำให้ระบบร่างคำตอบ</span></label>
         <label class="field">ชื่อผู้ใช้ Telegram ของโปรแกรมเมอร์
           <input name="dev_usernames" value="{{ settings.dev_usernames }}" placeholder="yuopa9, dev2">
           <span class="hint">คั่นด้วยเครื่องหมายจุลภาค ไม่ต้องใส่ @ ระบบจะอ่านเฉพาะข้อความจากคนเหล่านี้</span></label>

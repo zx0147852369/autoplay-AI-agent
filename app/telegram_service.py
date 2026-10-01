@@ -22,6 +22,7 @@ from .security import decrypt, encrypt
 
 log = logging.getLogger(__name__)
 
+STICKER_TEXT = "(สติกเกอร์)"
 IMAGE_MIME_EXT = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}
 
 
@@ -38,6 +39,8 @@ class TelegramService:
         # กลุ่มโปรแกรมเมอร์: chat id, username ที่ต้องติดตาม (ตัวพิมพ์เล็ก ไม่มี @), callback(dict)
         self.dev_group_id: int | None = None
         self.dev_users: set[str] = set()
+        # ทีมงานคนอื่นในกลุ่มลูกค้า (นอกจากบัญชีที่เชื่อมต่อ) ข้อความของคนเหล่านี้ไม่ต้องวิเคราะห์
+        self.staff_users: set[str] = set()
         self.on_dev_message = None
         self.on_connected = None  # async callback หลังเชื่อมต่อสำเร็จ
 
@@ -52,6 +55,13 @@ class TelegramService:
         except (TypeError, ValueError):
             self.dev_group_id = None
         self.dev_users = {u.strip().lstrip("@").lower() for u in (usernames or "").replace("\n", ",").split(",") if u.strip()}
+
+    def set_staff(self, usernames: str) -> None:
+        self.staff_users = {u.strip().lstrip("@").lower() for u in (usernames or "").replace("\n", ",").split(",") if u.strip()}
+
+    def is_staff(self, msg, sender) -> bool:
+        username = (getattr(sender, "username", None) or "").lower()
+        return bool(msg.out) or (bool(username) and username in self.staff_users)
 
     def reload_monitored(self) -> None:
         with SessionLocal() as db:
@@ -232,20 +242,23 @@ class TelegramService:
         msgs.reverse()  # เก่า -> ใหม่
         with SessionLocal() as db:
             existing = set(db.scalars(select(Message.tg_message_id).where(Message.chat_id == chat_id)))
-        last_staff = max((i for i, m in enumerate(msgs) if m.out), default=-1)
+        senders = []
+        for m in msgs:
+            try:
+                senders.append(await m.get_sender())
+            except RPCError:
+                senders.append(None)
+        staff = [self.is_staff(m, s) for m, s in zip(msgs, senders)]
+        last_staff = max((i for i, is_staff in enumerate(staff) if is_staff), default=-1)
         cutoff = utcnow() - timedelta(hours=unanswered_hours)
         waiting = 0
-        for i, m in enumerate(msgs):
+        for i, (m, sender) in enumerate(zip(msgs, senders)):
             if m.id in existing:
                 continue
             date = m.date.replace(tzinfo=None) if m.date else utcnow()
-            needs_analysis = not m.out and i > last_staff and date >= cutoff
-            try:
-                sender = await m.get_sender()
-            except RPCError:
-                sender = None
+            needs_analysis = not staff[i] and i > last_staff and date >= cutoff
             media_path = await self._download_image(chat_id, m) if needs_analysis else ""
-            self._store(chat_id, m, sender, media_path, analyzed=not needs_analysis)
+            self._store(chat_id, m, sender, media_path, analyzed=not needs_analysis, staff=staff[i])
             waiting += needs_analysis
         return waiting
 
@@ -262,15 +275,18 @@ class TelegramService:
             name += f" (@{sender.username})"
         return name
 
-    def _store(self, chat_id: int, msg, sender, media_path: str, analyzed: bool) -> None:
+    def _store(self, chat_id: int, msg, sender, media_path: str, analyzed: bool, staff: bool = False) -> None:
+        text = msg.message or ""
+        if not text and getattr(msg, "sticker", None):
+            text = STICKER_TEXT
         with SessionLocal() as db:
             db.add(Message(
                 chat_id=chat_id,
                 tg_message_id=msg.id,
                 sender_id=getattr(msg, "sender_id", None),
                 sender_name=self._sender_name(sender),
-                is_outgoing=bool(msg.out),
-                text=msg.message or "",
+                is_outgoing=bool(msg.out) or staff,  # ข้อความทีมงาน (บัญชีที่เชื่อมต่อ หรือรายชื่อทีมงาน)
+                text=text,
                 media_path=media_path,
                 date=msg.date.replace(tzinfo=None) if msg.date else utcnow(),
                 analyzed=analyzed,
@@ -314,13 +330,16 @@ class TelegramService:
             sender = await event.get_sender()
         except RPCError:
             sender = None
-        media_path = await self._download_image(event.chat_id, msg)
-        # ข้อความของทีมงานเองไม่ต้องวิเคราะห์
-        self._store(event.chat_id, msg, sender, media_path, analyzed=bool(msg.out))
-        if not msg.out and self.on_message:
+        staff = self.is_staff(msg, sender)
+        media_path = "" if staff else await self._download_image(event.chat_id, msg)
+        # ข้อความของทีมงานไม่ต้องวิเคราะห์
+        self._store(event.chat_id, msg, sender, media_path, analyzed=staff, staff=staff)
+        if not staff and self.on_message:
             self.on_message(event.chat_id)
 
     async def _download_image(self, chat_id: int, msg) -> str:
+        if getattr(msg, "sticker", None):
+            return ""  # สติกเกอร์ไม่ใช่รูปปัญหา ไม่ต้องดาวน์โหลด
         ext = None
         if msg.photo:
             ext = ".jpg"
