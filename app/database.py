@@ -123,7 +123,6 @@ class Ticket(Base):
     customer_name: Mapped[str] = mapped_column(String(256), default="")
     website_url: Mapped[str] = mapped_column(String(1024), default="")
     site_check: Mapped[str] = mapped_column(Text, default="")  # JSON ผลตรวจเว็บไซต์ล่าสุด
-    checklist: Mapped[str] = mapped_column(Text, default="", server_default="")  # JSON รายการขั้นตอนที่ติ๊กแล้ว
     assignee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     # การส่งเข้ากลุ่มโปรแกรมเมอร์: "" ยังไม่ส่ง / pending รออนุมัติ / sent ส่งแล้ว / skipped แอดมินเลือกไม่ส่ง
     dev_status: Mapped[str] = mapped_column(String(16), default="", server_default="")

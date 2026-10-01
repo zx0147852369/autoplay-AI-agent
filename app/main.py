@@ -20,9 +20,7 @@ from sqlalchemy import func, select
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import ai_service, analyzer, dev_bridge, quota
-from .config import (
-    ADMIN_PASSWORD, ADMIN_USERNAME, BANK_PANEL_URL, DATA_DIR, DISPLAY_TZ, EPHEMERAL_STORAGE, MEDIA_DIR, SECRET_KEY,
-)
+from .config import ADMIN_PASSWORD, ADMIN_USERNAME, DATA_DIR, DISPLAY_TZ, EPHEMERAL_STORAGE, MEDIA_DIR, SECRET_KEY
 from .database import (
     DEFAULT_SETTINGS,
     Chat,
@@ -759,12 +757,9 @@ async def ticket_detail(request: Request, ticket_id: int):
         users = list(db.scalars(select(User).order_by(User.username)))
         replies = list(db.scalars(select(Reply).where(Reply.ticket_id == ticket_id).order_by(Reply.created_at)))
         dev_posted = db.scalar(select(func.count(TicketLink.id)).where(TicketLink.ticket_id == ticket_id))
-    steps = BANK_GEN_STEPS if ticket.category == "bank_gen" else []
-    done = set(json.loads(ticket.checklist or "[]")) if steps else set()
     return render(request, "ticket_detail.html", user, ticket=ticket, timeline=build_timeline(events, attachments),
                   attachments=attachments, chat=chat, users=users, replies=replies, dev_posted=dev_posted,
-                  dev_group_set=bool(telegram.dev_group_id), bank_steps=steps, bank_done=done,
-                  bank_panel_url=BANK_PANEL_URL)
+                  dev_group_set=bool(telegram.dev_group_id))
 
 
 def build_timeline(events, attachments) -> list[dict]:
@@ -975,37 +970,6 @@ async def chat_website(request: Request, chat_id: int, website_url: str = Form("
     return back(f"/chats/{chat_id}")
 
 
-# ขั้นตอนเจนบัญชี SCB LINE Connect (แอดมินทำบนเว็บ all-bank เอง ระบบแค่ช่วยเตือน)
-BANK_GEN_STEPS = [
-    ("login", "เปิดเว็บ all-bank แล้วเข้าสู่ระบบ (ใส่ 2FA เอง)"),
-    ("add", "เมนู \"บัญชีและ API\" → กด \"เพิ่มบัญชี\""),
-    ("name", "ตั้งชื่อบัญชี = ชื่อกลุ่มลูกค้า · เลือก Proxy อะไรก็ได้ · กด \"สร้างบัญชี\""),
-    ("qr", "กด \"สร้าง QR\" แล้วส่ง QR เข้ากลุ่มลูกค้าให้สแกน"),
-    ("otp", "ลูกค้าสแกนแล้ว ส่ง OTP ให้ลูกค้ายืนยัน"),
-    ("link", "กด \"ลิงก์ชั่วคราว v3\" คัดลอก (ขึ้นต้น external/) แล้วส่งให้ลูกค้า"),
-]
-BANK_GEN_STEP_KEYS = {k for k, _ in BANK_GEN_STEPS}
-
-
-@app.post("/tickets/{ticket_id}/checklist")
-async def ticket_checklist(request: Request, ticket_id: int, step: str = Form(...), done: str = Form("")):
-    user = current_user(request, "programmer", "agent")
-    if step not in BANK_GEN_STEP_KEYS:
-        return back(f"/tickets/{ticket_id}")
-    with SessionLocal() as db:
-        ticket = db.get(Ticket, ticket_id)
-        if not ticket:
-            return back("/tickets")
-        current = [k for k in json.loads(ticket.checklist or "[]") if k in BANK_GEN_STEP_KEYS]
-        if done and step not in current:
-            current.append(step)
-        elif not done and step in current:
-            current.remove(step)
-        ticket.checklist = json.dumps(current)
-        db.commit()
-    return back(f"/tickets/{ticket_id}")
-
-
 @app.post("/tickets/{ticket_id}/check-site")
 async def ticket_check_site(request: Request, ticket_id: int):
     current_user(request, "programmer", "agent")
@@ -1023,31 +987,6 @@ async def ticket_check_site(request: Request, ticket_id: int):
 
 
 # ---------------------------------------------------------------- คู่มือตอบคำถาม
-@app.get("/bank")
-async def bank_page(request: Request):
-    """รวมงานเชื่อม/เจนบัญชี SCB LINE Connect ไว้ที่เดียวสำหรับทีมเชื่อมบัญชี"""
-    user = current_user(request, "agent")
-    cats = dev_bridge.BANK_CATEGORIES
-    with SessionLocal() as db:
-        rows = list(db.scalars(select(Ticket).where(Ticket.category.in_(cats))
-                               .order_by(Ticket.created_at.desc())))
-        chat_titles = {c.id: c.title for c in db.scalars(select(Chat))}
-    items, counts = [], {"gen": 0, "open": 0, "done": 0}
-    nsteps = len(BANK_GEN_STEPS)
-    for t in rows:
-        done = len([k for k in json.loads(t.checklist or "[]") if k in BANK_GEN_STEP_KEYS])
-        is_gen = t.category == "bank_gen"
-        items.append({"t": t, "chat": chat_titles.get(t.chat_id, t.chat_id), "is_gen": is_gen,
-                      "done": done, "steps": nsteps, "pct": round(done / nsteps * 100) if nsteps else 0})
-        if is_gen:
-            counts["gen"] += 1
-        if t.status in ("open", "in_progress"):
-            counts["open"] += 1
-        elif t.status in ("resolved", "closed"):
-            counts["done"] += 1
-    return render(request, "bank.html", user, items=items, counts=counts, panel_url=BANK_PANEL_URL)
-
-
 @app.get("/guides")
 async def guides_page(request: Request, q: str = ""):
     user = current_user(request, "agent")
