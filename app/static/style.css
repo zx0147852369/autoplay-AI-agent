@@ -760,3 +760,84 @@ img.avatar.logo { object-fit: cover; background: #fff; border: 1px solid var(--l
 }
 .save-bar button { min-width: 180px; }
 
+/* =====================================================================
+   โหมดมืด  (html[data-theme="dark"] ตั้งจากสคริปต์ใน <head>)
+   ===================================================================== */
+.logo-dark { display: none; }
+[data-theme="dark"] .logo-light { display: none; }
+[data-theme="dark"] .logo-dark { display: inline-block; }
+.theme-btn .to-light { display: none; }
+[data-theme="dark"] .theme-btn .to-dark { display: none; }
+[data-theme="dark"] .theme-btn .to-light { display: inline; }
+.theme-btn { color: var(--ink-2); }
+
+[data-theme="dark"] {
+  --paper: #121311;
+  --paper-2: #191a18;
+  --surface: #1c1e1b;
+  --surface-2: #222420;
+  --line: #31342e;
+  --line-2: #454940;
+  --ink: #ebeae4;
+  --ink-2: #c6c4bb;
+  --muted: #98958b;
+  --pine: #35c08a;
+  --pine-2: #2aa877;
+  --pine-tint: #142a1f;
+  --red: #f26b5b;
+  --red-tint: #33191a;
+  --amber: #e7a948;
+  --amber-tint: #2f2513;
+  --blue: #86a8ff;
+  --blue-tint: #19213a;
+  --grey-tint: #272924;
+  --focus: 0 0 0 3px rgba(56, 226, 145, 0.28);
+  color-scheme: dark;
+}
+[data-theme="dark"] ::selection { background: #1f5a3d; }
+[data-theme="dark"] .nav-item:hover, [data-theme="dark"] .user-chip:hover,
+[data-theme="dark"] .icon-btn:hover, [data-theme="dark"] .btn.ghost:hover, [data-theme="dark"] button.ghost:hover { background: rgba(255, 255, 255, 0.06); }
+[data-theme="dark"] .nav-item.active { box-shadow: inset 3px 0 0 var(--mint), 0 1px 0 rgba(0, 0, 0, 0.3); }
+[data-theme="dark"] .avatar { background: #393c35; }
+[data-theme="dark"] .mobilebar { background: rgba(18, 19, 17, 0.92); }
+[data-theme="dark"] .btn, [data-theme="dark"] button:where(:not(.toast-x, .icon-btn, .switch)) { box-shadow: none; }
+[data-theme="dark"] .btn:hover, [data-theme="dark"] button:where(:not(.toast-x, .icon-btn, .switch)):hover { border-color: #5d6157; }
+[data-theme="dark"] .btn.primary, [data-theme="dark"] button.primary { background: #e9e8e2; color: #141513; border-color: #e9e8e2; }
+[data-theme="dark"] .btn.primary:hover, [data-theme="dark"] button.primary:hover { background: #d3d1c9; border-color: #d3d1c9; }
+[data-theme="dark"] .btn.go, [data-theme="dark"] button.go { background: #178a5d; border-color: #127350; color: #fff; }
+[data-theme="dark"] .btn.go:hover, [data-theme="dark"] button.go:hover { background: #1c9d6a; }
+[data-theme="dark"] .btn.danger:hover, [data-theme="dark"] button.danger:hover { border-color: #6e2f28; }
+[data-theme="dark"] input::placeholder, [data-theme="dark"] textarea::placeholder { color: #6d6a62; }
+[data-theme="dark"] .switch .track { background: #4a4d45; }
+[data-theme="dark"] .toast { background: #2b2d29; color: var(--ink); border: 1px solid var(--line-2); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5); }
+[data-theme="dark"] .toast.error { background: #7c2219; color: #fff; }
+[data-theme="dark"] .note.error { color: #ffb9ae; }
+[data-theme="dark"] .note.warn { color: #f2d08f; }
+[data-theme="dark"] .step.current .step-num { color: #141513; }
+[data-theme="dark"] .boxtab.active { background: #16271e; }
+[data-theme="dark"] .boxtab.dev.active { background: #181f33; }
+[data-theme="dark"] .msg.out { border-color: #24543b; }
+[data-theme="dark"] .strip-ic.alive, [data-theme="dark"] .cd-ic { border-color: #5a4419; }
+[data-theme="dark"] .bulk-bar { border-bottom-color: #5a2a24; }
+[data-theme="dark"] .icon-btn.del:hover { border-color: #6e2f28; }
+[data-theme="dark"] .quota-table tr.is-current td { background: #18261e; }
+[data-theme="dark"] .login-alert { color: #ffb9ae; border-color: #5a2a24; }
+[data-theme="dark"] .cdialog.danger .cd-ic { border-color: #6e2f28; }
+[data-theme="dark"] .cdialog.send .cd-ic, [data-theme="dark"] .md-ic { border-color: #24543b; }
+[data-theme="dark"] .cdialog, [data-theme="dark"] .mdialog { box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6); border: 1px solid var(--line); }
+[data-theme="dark"] .cdialog::backdrop, [data-theme="dark"] .mdialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+[data-theme="dark"] .thumb-tag { background: rgba(28, 30, 27, .92); }
+[data-theme="dark"] .lg-out, [data-theme="dark"] .cm.out .cm-bubble { background: #173526; border-color: #25543c; }
+[data-theme="dark"] .chatview { background: #151614 radial-gradient(rgba(255, 255, 255, .035) 1px, transparent 1px) 0 0 / 16px 16px; }
+[data-theme="dark"] .day-sep span { background: rgba(34, 36, 32, .94); }
+[data-theme="dark"] .cm-badge { background: rgba(53, 192, 138, .16); color: var(--pine); }
+[data-theme="dark"] .cm.out .cm-name { color: var(--pine); }
+[data-theme="dark"] .save-bar { background: rgba(28, 30, 27, .94); box-shadow: 0 8px 24px rgba(0, 0, 0, .45); }
+[data-theme="dark"] .qbar span { background: #22b066; }
+[data-theme="dark"] img.cicon { filter: saturate(1.05) brightness(1.05); }
+/* แถบล่าง sidebar: ชื่อผู้ใช้ + ปุ่มเสียง / ธีม / ออกจากระบบ */
+.sidebar-foot { gap: 2px; }
+.sidebar-foot .user-chip { flex: 1; min-width: 0; }
+.sidebar-foot .user-meta small, .sidebar-foot .user-meta strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sidebar-foot .icon-btn { width: 28px; height: 28px; flex-shrink: 0; }
+
