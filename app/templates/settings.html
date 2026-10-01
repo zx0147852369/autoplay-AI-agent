@@ -86,6 +86,19 @@
         {% elif settings.ai_model.startswith('claude') and not has_claude_key %}
           <div class="note error">โมเดลที่เลือกต้องใช้ <code>ANTHROPIC_API_KEY</code></div>
         {% endif %}
+        <div class="field">เพดานโควตาฟรีต่อรุ่น <span class="hint">ดูตัวเลขจริงของบัญชีคุณที่ <a href="https://aistudio.google.com/rate-limit" target="_blank" rel="noopener">AI Studio</a> · ใส่ 0 = ไม่จำกัด</span>
+          <table class="grid-table limits-table">
+            <thead><tr><th>รุ่น</th><th class="shrink">ต่อวัน</th><th class="shrink">ต่อนาที</th></tr></thead>
+            <tbody>
+            {% for model, lim in limits.items() %}
+              <tr><td class="mono small">{{ model }}</td>
+                <td><input name="rpd__{{ model }}" type="number" min="0" max="100000" value="{{ lim.rpd }}" class="mono"></td>
+                <td><input name="rpm__{{ model }}" type="number" min="0" max="10000" value="{{ lim.rpm }}" class="mono"></td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          <input type="hidden" name="gemini_limits" value="1">
+        </div>
         <label class="field">ความละเอียดในการคิด <span class="hint">ใช้กับ Claude เท่านั้น</span>
           <select name="ai_effort">
             {% for e, l in [('low', 'ต่ำ — เร็วและประหยัด'), ('medium', 'กลาง'), ('high', 'สูง — ละเอียดที่สุด')] %}<option value="{{ e }}" {{ 'selected' if settings.ai_effort == e }}>{{ l }}</option>{% endfor %}

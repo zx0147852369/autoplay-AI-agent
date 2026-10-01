@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=20">
+  <link rel="stylesheet" href="/static/style.css?v=22">
 </head>
 <body>
 {% if user %}
@@ -39,6 +39,15 @@
       {{ nav_item('/settings', 'settings', 'ตั้งค่า') }}
     {% endif %}
   </nav>
+  {% if quota_info and quota_info.is_gemini and quota_info.current %}
+  {% set qcur = quota_info.current %}
+  <a class="quota-mini" href="/#quota" title="โควตา Gemini วันนี้ (นับจากระบบนี้)">
+    <span class="quota-mini-head"><span>โควตา AI วันนี้</span>
+      <b>{% if qcur.limit %}เหลือ {{ qcur.left }}{% else %}ใช้ {{ qcur.used }}{% endif %}</b></span>
+    {% if qcur.limit %}<span class="qbar {{ qcur.level }}"><span style="width: {{ qcur.pct }}%"></span></span>{% endif %}
+    <span class="quota-mini-foot">{{ qcur.used }}{% if qcur.limit %}/{{ qcur.limit }}{% endif %} ครั้ง · รีเซ็ตใน {{ quota_info.reset_in }}</span>
+  </a>
+  {% endif %}
   <div class="sidebar-foot">
     <a class="user-chip" href="/account">
       <span class="avatar">{{ user.username[:1] | upper }}</span>

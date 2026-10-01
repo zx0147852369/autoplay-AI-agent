@@ -147,6 +147,20 @@ class TicketEvent(Base):
     ticket: Mapped[Ticket] = relationship(back_populates="events")
 
 
+class AiUsage(Base):
+    """บันทึกการเรียก AI ทุกครั้ง (ใช้นับโควตาที่เหลือ)"""
+
+    __tablename__ = "ai_usage"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    model: Mapped[str] = mapped_column(String(64), index=True)
+    ok: Mapped[bool] = mapped_column(Boolean, default=True)
+    code: Mapped[str] = mapped_column(String(16), default="ok")  # ok / 429 / 503 / ...
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class TicketLink(Base):
     """ข้อความในกลุ่มโปรแกรมเมอร์ที่ผูกกับ ticket (ใช้รู้ว่าโปรแกรมเมอร์ตอบเรื่อง ticket ไหน)"""
 
@@ -197,6 +211,7 @@ class Reply(Base):
 DEFAULT_SETTINGS = {
     "ai_model": "gemini-3.8-flash",
     "ai_effort": "medium",
+    "gemini_limits": "",  # JSON เพดานโควตาต่อรุ่น {"model": {"rpm": n, "rpd": n}} ว่าง = ใช้ค่าเริ่มต้น
     "business_context": (
         "เราเป็นทีมซัพพอร์ตของเว็บไซต์ให้บริการลูกค้า ลูกค้าจะทักเข้ามาในกลุ่ม Telegram "
         "เพื่อสอบถามหรือแจ้งปัญหา เช่น เว็บไซต์เข้าไม่ได้ เข้าสู่ระบบไม่ได้ ฝากเงินแล้วยอดไม่เข้าอัตโนมัติ"

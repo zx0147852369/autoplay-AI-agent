@@ -476,6 +476,27 @@ a.strip-cell:hover .cicon { transform: translateY(-2px) scale(1.08); }
 .grid-table input[type="checkbox"] { width: 16px; height: 16px; padding: 0; accent-color: var(--pine); cursor: pointer; }
 .delete-zone { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); }
 
+/* ---------- หลอดโควตา ---------- */
+.qbar { display: block; height: 8px; min-width: 120px; border-radius: 4px; background: var(--grey-tint); overflow: hidden; }
+.qbar span { display: block; height: 100%; border-radius: 4px; background: #12a150; transition: width .4s ease; }
+.qbar.mid span { background: #d9a400; }
+.qbar.high span { background: #e8590c; }
+.qbar.full span { background: var(--red); width: 100% !important; }
+.quota-table .qbar { margin-bottom: 3px; }
+.quota-table tr.is-current td { background: #f6fbf8; }
+.limits-table { margin-top: 4px; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.limits-table td, .limits-table th { padding: 6px 10px; }
+.limits-table input { width: 90px; padding: 4px 8px; }
+.quota-mini {
+  display: block; margin: 0 4px 12px; padding: 10px 12px; border-radius: var(--r-lg);
+  background: var(--surface); border: 1px solid var(--line); color: var(--ink);
+}
+.quota-mini:hover { text-decoration: none; border-color: var(--line-2); }
+.quota-mini-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.78rem; color: var(--muted); margin-bottom: 6px; }
+.quota-mini-head b { font-family: var(--mono); color: var(--ink); font-size: 0.85rem; font-weight: 500; }
+.quota-mini .qbar { min-width: 0; height: 6px; }
+.quota-mini-foot { display: block; margin-top: 5px; font-size: 0.72rem; color: var(--muted); }
+
 /* ---------- toolbar / checklist ---------- */
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); }
 .toolbar .search { position: relative; flex: 1; min-width: 220px; }

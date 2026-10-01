@@ -48,6 +48,48 @@
 </div>
 {% endif %}
 
+{% if quota_info %}
+{% set qi = quota_info %}
+<section class="panel" id="quota">
+  <div class="panel-head">
+    <h2>{{ icon('activity', 16) }} โควตา Gemini วันนี้</h2>
+    <span class="count">รีเซ็ตใน {{ qi.reset_in }} · เวลา {{ qi.reset_at | localtime_hm }} น.</span>
+  </div>
+  <div class="table-wrap">
+  <table class="grid-table quota-table">
+    <thead><tr><th>รุ่น</th><th>ใช้ไปวันนี้</th><th class="shrink center">เหลือ</th><th class="shrink center">ต่อนาที</th><th class="shrink">สถานะ</th></tr></thead>
+    <tbody>
+    {% for r in qi.rows %}
+      <tr class="{{ 'is-current' if r.selected }}">
+        <td class="nowrap"><span class="mono small">{{ r.model }}</span>
+          {% if r.selected %}<span class="tag st-resolved">รุ่นหลัก</span>{% else %}<span class="tag">สำรอง</span>{% endif %}</td>
+        <td>
+          {% if r.limit %}
+            <div class="qbar {{ r.level }}"><span style="width: {{ r.pct }}%"></span></div>
+            <div class="small muted">{{ r.used }} / {{ r.limit }} ครั้ง ({{ r.pct }}%){% if r.failed %} · ล้มเหลว {{ r.failed }}{% endif %}</div>
+          {% else %}<span class="small">{{ r.used }} ครั้ง (ไม่ได้ตั้งเพดาน)</span>{% endif %}
+        </td>
+        <td class="num center"><b class="{{ 'error-text' if r.limit and not r.left }}">{{ r.left if r.limit else '—' }}</b></td>
+        <td class="num center small">{{ r.per_min }}{% if r.rpm %}/{{ r.rpm }}{% endif %}</td>
+        <td class="shrink small">
+          {% if r.limit and not r.left %}<span class="state bad"><span class="dot off"></span>หมดแล้ว</span>
+          {% elif r.last_429 %}<span class="state warn"><span class="dot wait"></span>Google แจ้งเต็ม {{ r.last_429 | localtime_hm }}</span>
+          {% elif r.level in ('high', 'mid') %}<span class="state warn"><span class="dot wait"></span>ใกล้หมด</span>
+          {% else %}<span class="state ok"><span class="dot live"></span>พร้อมใช้</span>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div class="panel-foot">
+    <span>รวมทุกรุ่น <b>{{ qi.total_used }}</b>{% if qi.total_limit %} / <b>{{ qi.total_limit }}</b> ครั้ง · เหลือ <b>{{ qi.total_left }}</b>{% endif %}</span>
+    <span>โทเคนวันนี้ <b>{{ "{:,}".format(qi.input_tokens) }}</b> เข้า · <b>{{ "{:,}".format(qi.output_tokens) }}</b> ออก</span>
+    <span>นับจากระบบนี้ · ตัวเลขจริงดูที่ <a href="https://aistudio.google.com/rate-limit" target="_blank" rel="noopener">AI Studio</a></span>
+  </div>
+</section>
+{% endif %}
+
 {% set done = setup_done %}
 {% if done < setup | length %}
 <section class="panel">

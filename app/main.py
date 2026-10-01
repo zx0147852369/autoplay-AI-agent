@@ -16,7 +16,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import ai_service, analyzer, dev_bridge
+from . import ai_service, analyzer, dev_bridge, quota
 from .config import ADMIN_PASSWORD, ADMIN_USERNAME, DATA_DIR, DISPLAY_TZ, EPHEMERAL_STORAGE, MEDIA_DIR, SECRET_KEY
 from .database import (
     DEFAULT_SETTINGS,
@@ -148,6 +148,7 @@ def _iso_localtime(value: str) -> str:
 
 
 templates.env.filters["localtime"] = _localtime
+templates.env.filters["localtime_hm"] = lambda dt: dt.replace(tzinfo=timezone.utc).astimezone(DISPLAY_TZ).strftime("%H:%M") if dt else "-"
 templates.env.filters["isolocal"] = _iso_localtime
 templates.env.filters["fromjson"] = lambda s: json.loads(s) if s else None
 templates.env.globals.update(
@@ -200,6 +201,12 @@ def flash(request: Request, message: str, kind: str = "ok") -> None:
 
 def render(request: Request, name: str, user: User | None, **context):
     context.update(user=user, flashes=request.session.pop("flash", []), path=request.url.path)
+    if user and "quota_info" not in context:
+        try:
+            with SessionLocal() as db:
+                context["quota_info"] = quota.snapshot(get_settings(db))
+        except Exception:  # noqa: BLE001 - หลอดโควตาพังต้องไม่ทำให้ทั้งหน้าพัง
+            log.exception("quota snapshot failed")
     return templates.TemplateResponse(request, name, context)
 
 
@@ -317,6 +324,7 @@ async def dashboard(request: Request):
                   by_status=by_status, recent=recent, pending_list=pending_list, monitored=monitored,
                   chat_titles=chat_titles, ai_errors=analyzer.last_error, connected=telegram.connected,
                   today=thai_today(), today_counts=today, setup=setup, system=system,
+                  quota_info=quota.snapshot(settings),
                   setup_done=sum(1 for item in setup if item[1]))
 
 
@@ -815,6 +823,7 @@ async def settings_page(request: Request):
         groups = list(db.scalars(select(Chat).where(Chat.kind != "user").order_by(Chat.title)))
     suggested = next((g for g in groups if "autopay support" in g.title.lower()), None)
     return render(request, "settings.html", user, settings=settings, users=users, groups=groups, suggested=suggested,
+                  limits=quota.limits(settings),
                   has_gemini_key=bool(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")),
                   has_claude_key=bool(os.getenv("ANTHROPIC_API_KEY")))
 
@@ -827,6 +836,17 @@ async def settings_save(request: Request):
         for key in DEFAULT_SETTINGS:
             if key in ("auto_draft", "auto_ticket", "site_check", "ask_link", "notify_resolved", "dev_forward", "dev_watch"):
                 value = "1" if form.get(key) else "0"
+            elif key == "gemini_limits":
+                limits = {}
+                for model in quota.DEFAULT_LIMITS:
+                    entry = {}
+                    for field in ("rpm", "rpd"):
+                        raw = str(form.get(f"{field}__{model}", "")).strip()
+                        if raw.isdigit():
+                            entry[field] = int(raw)
+                    if entry:
+                        limits[model] = entry
+                value = json.dumps(limits)
             elif key == "dev_group_id":
                 value = str(form.get(key, "")).strip()
                 if value and not value.lstrip("-").isdigit():

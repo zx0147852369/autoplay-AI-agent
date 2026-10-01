@@ -14,6 +14,7 @@ from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 
+from . import quota
 from .config import DISPLAY_TZ, MEDIA_DIR
 from .database import DEFAULT_SETTINGS, Message, Ticket
 
@@ -207,7 +208,13 @@ async def _call_gemini(model: str, system: str, parts: list[tuple], schema: dict
     global last_model_used
     candidates = [model] + [m for m in GEMINI_MODELS if m != model]
     errors_seen = []
+    tried = False
     for name in candidates:
+        ok, why = quota.available(name)
+        if not ok:  # โควตาของรุ่นนี้หมดตามที่นับไว้ -> ไม่เรียกให้เสียเปล่า
+            errors_seen.append(f"{name}: {why}")
+            continue
+        tried = True
         try:
             text = await _call_gemini_once(name, system, parts, schema)
         except AIError as e:
@@ -220,6 +227,10 @@ async def _call_gemini(model: str, system: str, parts: list[tuple], schema: dict
             log.info("ใช้ %s แทน %s ชั่วคราว", name, model)
         last_model_used = name
         return text
+    if not tried:
+        reset = quota.next_reset_utc().replace(tzinfo=timezone.utc).astimezone(DISPLAY_TZ)
+        raise AIError(f"โควตาฟรีของ Gemini หมดทุกรุ่นแล้ว จะรีเซ็ตเวลา {reset:%H:%M} น. (" + " / ".join(errors_seen) + ")",
+                      retryable=True)
     raise AIError("Gemini ใช้ไม่ได้ทุกรุ่นตอนนี้ (" + " / ".join(errors_seen) + ") ระบบจะลองใหม่อัตโนมัติ",
                   retryable=True)
 
@@ -237,24 +248,34 @@ async def _call_gemini_once(model: str, system: str, parts: list[tuple], schema:
     )
     try:
         response = await _gemini_client().aio.models.generate_content(model=model, contents=contents, config=config)
-    except genai_errors.ClientError as e:
-        if e.code == 429:
-            raise AIError("โควตาฟรีเต็ม (429)", retryable=True) from e
-        if e.code in (400, 401, 403) and "key" in str(e).lower():
-            raise AIError("GEMINI_API_KEY ไม่ถูกต้อง") from e
-        if e.code == 404:
-            raise AIError("ไม่พบโมเดลนี้ (404)", retryable=True) from e
-        raise AIError(f"Gemini ตอบกลับผิดพลาด ({e.code}): {e.message}") from e
-    except genai_errors.ServerError as e:
-        raise AIError(f"ขัดข้องชั่วคราว ({e.code})", retryable=True) from e
+    except genai_errors.APIError as e:
+        quota.record(model, False, str(e.code))
+        raise _gemini_error(e) from e
     except (httpx.HTTPError, OSError) as e:
+        quota.record(model, False, "network")
         raise AIError("เชื่อมต่อ Gemini ไม่ได้ ตรวจสอบอินเทอร์เน็ต") from e
+    usage = getattr(response, "usage_metadata", None)
+    quota.record(model, True, "ok", getattr(usage, "prompt_token_count", 0) or 0,
+                 (getattr(usage, "candidates_token_count", 0) or 0) + (getattr(usage, "thoughts_token_count", 0) or 0))
 
     text = (response.text or "").strip()
     if not text:
         reason = response.candidates[0].finish_reason if response.candidates else "ไม่ทราบสาเหตุ"
         raise AIError(f"Gemini ไม่ตอบกลับ ({reason})")
     return text
+
+
+def _gemini_error(e: "genai_errors.APIError") -> AIError:
+    """แปลง error จาก Gemini เป็นข้อความภาษาไทย retryable = ลองรุ่นอื่นแทนได้"""
+    if isinstance(e, genai_errors.ServerError):
+        return AIError(f"ขัดข้องชั่วคราว ({e.code})", retryable=True)
+    if e.code == 429:
+        return AIError("โควตาฟรีเต็ม (429)", retryable=True)
+    if e.code in (400, 401, 403) and "key" in str(e).lower():
+        return AIError("GEMINI_API_KEY ไม่ถูกต้อง")
+    if e.code == 404:
+        return AIError("ไม่พบโมเดลนี้ (404)", retryable=True)
+    return AIError(f"Gemini ตอบกลับผิดพลาด ({e.code}): {e.message}")
 
 
 # ---------------------------------------------------------------- Anthropic Claude
@@ -307,6 +328,7 @@ async def _call_claude(model: str, settings: dict[str, str], system: str, parts:
     except anthropic.APIConnectionError as e:
         raise AIError("เชื่อมต่อ AI ไม่ได้ ตรวจสอบอินเทอร์เน็ต") from e
 
+    quota.record(model, True, "ok", response.usage.input_tokens, response.usage.output_tokens)
     if response.stop_reason == "refusal":
         raise AIError("AI ปฏิเสธการประมวลผลข้อความชุดนี้")
     text = "".join(b.text for b in response.content if b.type == "text").strip()
