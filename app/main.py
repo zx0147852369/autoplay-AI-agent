@@ -50,6 +50,8 @@ for _stream in (sys.stdout, sys.stderr):
     if hasattr(_stream, "reconfigure"):
         _stream.reconfigure(encoding="utf-8", errors="replace")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+from . import logbuf
+logbuf.install()
 log = logging.getLogger("app")
 
 APP_DIR = Path(__file__).resolve().parent
@@ -405,6 +407,20 @@ async def dashboard(request: Request):
                   today=thai_today(), today_counts=today, setup=setup, system=system,
                   quota_info=quota.snapshot(settings),
                   setup_done=sum(1 for item in setup if item[1]))
+
+
+@app.get("/logs")
+async def logs_page(request: Request, level: str = ""):
+    user = current_user(request, "admin")
+    data = logbuf.records(level=level)
+    return render(request, "logs.html", user, logs=data["records"], last=data["last"],
+                  total=data["total"], level=level)
+
+
+@app.get("/api/logs")
+async def api_logs(request: Request, after: int = 0, level: str = ""):
+    current_user(request, "admin")
+    return JSONResponse(logbuf.records(after=after, level=level))
 
 
 @app.get("/system")
