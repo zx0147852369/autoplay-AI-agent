@@ -9,6 +9,8 @@ import asyncio
 import json
 import logging
 import re
+from datetime import timedelta
+from pathlib import Path
 
 from sqlalchemy import select
 
@@ -19,9 +21,11 @@ from .database import (
     Message,
     SessionLocal,
     Ticket,
+    Setting,
     TicketEvent,
     TicketLink,
     get_settings,
+    utcnow,
 )
 from .notices import draft_update, sync_resolved_notice
 from .telegram_service import telegram
@@ -33,6 +37,8 @@ STATUS_TH = {"open": "เปิดใหม่", "in_progress": "กำลัง
 MAX_PHOTOS = 6
 
 _tasks: set[asyncio.Task] = set()
+last_error = ""  # ข้อผิดพลาดล่าสุดตอนส่งเข้ากลุ่ม (แสดงในหน้าภาพรวม)
+BACKLOG_HOURS = 24
 
 
 def configure() -> None:
@@ -41,6 +47,66 @@ def configure() -> None:
         settings = get_settings(db)
     telegram.set_dev(settings.get("dev_group_id"), settings.get("dev_usernames", ""))
     telegram.on_dev_message = _schedule
+    telegram.on_connected = on_telegram_connected
+
+
+async def auto_detect_group() -> int | None:
+    """ยังไม่ได้เลือกกลุ่ม -> หากลุ่มชื่อ "Autopay Support" จากบัญชี Telegram ให้อัตโนมัติ"""
+    with SessionLocal() as db:
+        current = _group_id(get_settings(db))
+    if current or not telegram.connected:
+        return current
+    dialogs = await telegram.list_dialogs()
+    match = next((d for d in dialogs if d["kind"] != "user" and "autopay support" in d["title"].lower()), None)
+    if not match:
+        return None
+    with SessionLocal() as db:
+        chat = db.get(Chat, match["id"])
+        if chat is None:
+            db.add(Chat(id=match["id"], title=match["title"], kind=match["kind"]))
+        db.merge(Setting(key="dev_group_id", value=str(match["id"])))
+        db.commit()
+    configure()
+    log.info("ตั้งกลุ่ม %s เป็นกลุ่มโปรแกรมเมอร์อัตโนมัติ", match["title"])
+    return match["id"]
+
+
+async def post_backlog() -> int:
+    """ticket ที่ยังไม่ปิดและยังไม่เคยส่งเข้ากลุ่ม (ภายใน 24 ชม.) -> ส่งให้ครบ"""
+    since = utcnow() - timedelta(hours=BACKLOG_HOURS)
+    with SessionLocal() as db:
+        if get_settings(db).get("dev_forward") != "1":
+            return 0
+        posted = select(TicketLink.ticket_id)
+        ids = list(db.scalars(select(Ticket.id).where(
+            Ticket.status.in_(("open", "in_progress")), Ticket.created_at >= since, Ticket.id.not_in(posted)
+        ).order_by(Ticket.created_at).limit(10)))
+    sent = 0
+    for ticket_id in ids:
+        if (await post_ticket(ticket_id)).startswith("ส่งเข้ากลุ่ม"):
+            sent += 1
+    return sent
+
+
+async def on_telegram_connected() -> None:
+    try:
+        if await auto_detect_group():
+            await post_backlog()
+    except Exception:  # noqa: BLE001
+        log.exception("dev group setup on connect failed")
+
+
+def schedule_backlog() -> None:
+    task = asyncio.get_running_loop().create_task(_safe_backlog())
+    _tasks.add(task)
+    task.add_done_callback(_tasks.discard)
+
+
+async def _safe_backlog() -> None:
+    try:
+        await post_backlog()
+    except Exception:  # noqa: BLE001
+        log.exception("post backlog failed")
 
 
 def _schedule(info: dict) -> None:
@@ -107,12 +173,25 @@ async def post_ticket(ticket_id: int, force: bool = False) -> str:
         return ""
     if not telegram.connected:
         return "ยังไม่ได้เชื่อมต่อ Telegram"
-    root = await telegram.send_text(group_id, text)
+    global last_error
+    try:
+        root = await telegram.send_text(group_id, text)
+    except Exception as e:  # noqa: BLE001 - เช่น บัญชีไม่ได้อยู่ในกลุ่ม หรือไม่มีสิทธิ์ส่งข้อความ
+        log.exception("post ticket %s to dev group failed", ticket_id)
+        last_error = f"ส่ง ticket #{ticket_id} เข้ากลุ่มไม่สำเร็จ: {e}"
+        with SessionLocal() as db:
+            db.add(TicketEvent(ticket_id=ticket_id, kind="dev", author="ระบบ", body=last_error))
+            db.commit()
+        return last_error
     ids = [root]
-    photos = [p for p in photos if (MEDIA_DIR / p).exists()]
+    photos = [p for p in photos if Path(p).exists()]
     if photos:
-        ids += await telegram.send_files(group_id, photos, reply_to=root)
+        try:
+            ids += await telegram.send_files(group_id, photos, reply_to=root)
+        except Exception:  # noqa: BLE001 - ส่งรูปไม่ได้ ไม่ต้องล้มทั้งหมด
+            log.exception("post ticket photos failed")
     _save_links(ticket_id, group_id, ids)
+    last_error = ""
     with SessionLocal() as db:
         db.add(TicketEvent(ticket_id=ticket_id, kind="dev", author="ระบบ", body="ส่งรายละเอียดเข้ากลุ่มโปรแกรมเมอร์แล้ว"))
         db.commit()
@@ -128,7 +207,11 @@ async def post_customer_update(ticket_id: int, messages: list[Message]) -> None:
         root = db.scalar(select(TicketLink.tg_message_id).where(TicketLink.ticket_id == ticket_id)
                          .order_by(TicketLink.id).limit(1))
     group_id = _group_id(settings)
-    if not group_id or not root:
+    if not group_id:
+        return
+    if not root:
+        # ticket นี้ยังไม่เคยส่งเข้ากลุ่ม (เช่น เปิดก่อนตั้งค่ากลุ่ม) -> ส่งทั้ง ticket ไปเลย
+        await post_ticket(ticket_id)
         return
     lines = [f"ข้อมูลเพิ่มเติมจากลูกค้า · Ticket #{ticket_id}"]
     lines += [f"- {m.sender_name or 'ลูกค้า'}: {m.text or '(รูปภาพ)'}" for m in messages]

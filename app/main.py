@@ -250,6 +250,7 @@ async def dashboard(request: Request):
             select(Reply).where(Reply.status == "pending").order_by(Reply.created_at.desc()).limit(5)))
         monitored = db.scalar(select(func.count(Chat.id)).where(Chat.monitored))
         chat_titles = {c.id: c.title for c in db.scalars(select(Chat))}
+        dev_title = chat_titles.get(telegram.dev_group_id, "") if telegram.dev_group_id else ""
         today = {
             "messages": db.scalar(select(func.count(Message.id))
                                   .where(Message.date >= day, Message.is_outgoing.is_(False))),
@@ -272,6 +273,8 @@ async def dashboard(request: Request):
         ("Telegram", telegram.connected, account.me_name or "ยังไม่ได้เชื่อมต่อ"),
         ("โมเดล AI", model_key_ready(model), model_label + ("" if model_key_ready(model) else " · ยังไม่มี API key")),
         ("การเก็บข้อมูล", not EPHEMERAL_STORAGE, "ถาวร (Volume)" if not EPHEMERAL_STORAGE else "ชั่วคราว หายเมื่อ deploy"),
+        ("กลุ่มโปรแกรมเมอร์", bool(dev_title) and not dev_bridge.last_error,
+         dev_bridge.last_error or dev_title or "ยังไม่ได้เลือกกลุ่ม (ตั้งค่า → กลุ่มแจ้งปัญหาโปรแกรมเมอร์)"),
         ("ร่างคำตอบอัตโนมัติ", settings.get("auto_draft") == "1", "เปิด" if settings.get("auto_draft") == "1" else "ปิด"),
         ("เปิด ticket อัตโนมัติ", settings.get("auto_ticket") == "1", "เปิด" if settings.get("auto_ticket") == "1" else "ปิด"),
         ("ตรวจเว็บไซต์อัตโนมัติ", settings.get("site_check") == "1", "เปิด" if settings.get("site_check") == "1" else "ปิด"),
@@ -734,6 +737,8 @@ async def settings_save(request: Request):
             db.merge(row)
         db.commit()
     dev_bridge.configure()
+    if telegram.dev_group_id and telegram.connected:
+        dev_bridge.schedule_backlog()
     flash(request, "บันทึกการตั้งค่าแล้ว")
     return back("/settings")
 

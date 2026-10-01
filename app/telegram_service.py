@@ -39,6 +39,7 @@ class TelegramService:
         self.dev_group_id: int | None = None
         self.dev_users: set[str] = set()
         self.on_dev_message = None
+        self.on_connected = None  # async callback หลังเชื่อมต่อสำเร็จ
 
     # ------------------------------------------------------------------ state
     @property
@@ -103,6 +104,8 @@ class TelegramService:
                     self.on_message(chat_id)
             except (RPCError, ValueError, OSError):
                 log.exception("backfill chat %s failed", chat_id)
+        if self.on_connected:
+            await self.on_connected()
 
     async def stop(self) -> None:
         if self.client:
