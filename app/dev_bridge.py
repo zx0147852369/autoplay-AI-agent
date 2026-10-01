@@ -177,7 +177,7 @@ def _save_links(ticket_id: int, chat_id: int, message_ids: list[int]) -> None:
         db.commit()
 
 
-BANK_CATEGORIES = ("bank_connect",)
+BANK_CATEGORIES = ("bank_gen", "bank_connect")
 
 
 def parse_usernames(text: str) -> list[str]:
