@@ -61,7 +61,7 @@ hr.divider { border: 0; border-top: 1px solid var(--line); margin: 16px 0; }
   transition: transform .25s ease;
 }
 .shell { margin-left: var(--sidebar); min-height: 100vh; }
-.content { max-width: 1440px; padding: 28px 36px 64px; }
+.content { width: 100%; min-width: 0; padding: 28px 36px 64px; }
 
 .brand { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; color: var(--ink); padding: 2px 8px 18px; }
 .brand-logo { display: block; width: 186px; height: auto; }
