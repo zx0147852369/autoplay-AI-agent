@@ -738,3 +738,15 @@ img.avatar.logo { object-fit: cover; background: #fff; border: 1px solid var(--l
 .cm-wait::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--amber); margin-right: 4px; vertical-align: 1px; }
 .cm-bubble.sticker { background: transparent; border-style: dashed; box-shadow: none; }
 @media (max-width: 640px) { .cm { max-width: 94%; } .chatview { padding: 12px; } }
+
+/* ---------- เสียงแจ้งเตือน ---------- */
+.sound-btn .off { display: none; }
+.sound-btn.muted .on { display: none; }
+.sound-btn.muted .off { display: inline; }
+.sound-btn.muted { color: var(--muted); }
+.sound-btn:not(.muted) { color: var(--pine); }
+.sound-btn.blocked { position: relative; }
+.sound-btn.blocked::after { content: ""; position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); }
+.account-grid { align-items: start; }
+.range { width: 100%; accent-color: var(--pine); padding: 0; border: 0; background: none; box-shadow: none; }
+@media (max-width: 1000px) { .account-grid { grid-template-columns: 1fr; } }

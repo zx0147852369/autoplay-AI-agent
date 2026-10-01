@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=36">
+  <link rel="stylesheet" href="/static/style.css?v=37">
 </head>
 <body>
 {% if user %}
@@ -54,6 +54,10 @@
       <img class="avatar logo" src="/static/brand/avatar.png" width="30" height="30" alt="">
       <span class="user-meta"><strong>{{ user.username }}</strong><small>{{ ROLES[user.role] }}</small></span>
     </a>
+    {% if user.role in ('admin', 'agent') %}
+    <button type="button" class="icon-btn sound-btn" id="soundBtn" title="เสียงแจ้งเตือน" aria-label="เปิด/ปิดเสียงแจ้งเตือน">
+      <span class="on">{{ icon('volume', 17) }}</span><span class="off">{{ icon('volume-off', 17) }}</span></button>
+    {% endif %}
     <form method="post" action="/logout"><button class="icon-btn" title="ออกจากระบบ" aria-label="ออกจากระบบ">{{ icon('logout', 17) }}</button></form>
   </div>
 </aside>
@@ -160,11 +164,90 @@
 </script>
 {% if user %}
 <script>
+  // ---------------- เสียงแจ้งเตือน (ตั้งค่าเก็บในเบราว์เซอร์เครื่องนี้) ----------------
+  const notifySound = (() => {
+    const KEY = 'soundSettings', DEFAULTS = { on: true, sound: 'chime', volume: 70, repeat: 0 };
+    const store = {
+      get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+      set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+    };
+    let ctx = null;
+    function audio() {
+      try {
+        ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+        if (ctx.state === 'suspended') ctx.resume();
+      } catch (e) { return null; }
+      return ctx;
+    }
+    // เบราว์เซอร์ให้เล่นเสียงได้หลังผู้ใช้คลิกในหน้าเว็บ -> ปลดล็อกเมื่อคลิกครั้งแรก
+    ['pointerdown', 'keydown'].forEach(t => document.addEventListener(t, () => { audio(); paint(); }, { once: true }));
+
+    function tone(c, freq, at, dur, vol, type = 'sine', toFreq = 0) {
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(freq, at);
+      if (toFreq) o.frequency.exponentialRampToValueAtTime(toFreq, at + dur);
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(Math.max(vol, 0.0002), at + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+      o.connect(g).connect(c.destination);
+      o.start(at); o.stop(at + dur + 0.05);
+    }
+    const SOUNDS = {
+      chime: { label: 'กริ๊ง (2 โน้ต)', play: (c, t, v) => { tone(c, 880, t, 0.35, v); tone(c, 1318.5, t + 0.16, 0.6, v); } },
+      bell: { label: 'ระฆัง', play: (c, t, v) => { tone(c, 660, t, 1.4, v); tone(c, 1320, t, 0.9, v * 0.35); tone(c, 1980, t, 0.5, v * 0.15); } },
+      dingdong: { label: 'ติ๊งต่อง', play: (c, t, v) => { tone(c, 1046.5, t, 0.5, v); tone(c, 784, t + 0.35, 0.8, v); } },
+      pop: { label: 'ป๊อป (สั้น)', play: (c, t, v) => { tone(c, 520, t, 0.12, v, 'triangle', 980); tone(c, 620, t + 0.14, 0.12, v, 'triangle', 1180); } },
+      alert: { label: 'บี๊บ 3 ครั้ง (ดัง)', play: (c, t, v) => { [0, 0.18, 0.36].forEach(d => tone(c, 1000, t + d, 0.11, v * 0.6, 'square')); } },
+    };
+    function settings() {
+      let s = {};
+      try { s = JSON.parse(store.get(KEY) || '{}'); } catch (e) {}
+      return { ...DEFAULTS, ...s };
+    }
+    function save(patch) { store.set(KEY, JSON.stringify({ ...settings(), ...patch })); paint(); }
+    function play(name) {
+      const s = settings(), c = audio();
+      if (!c || c.state !== 'running') return false;
+      (SOUNDS[name || s.sound] || SOUNDS.chime).play(c, c.currentTime + 0.02, Math.pow(s.volume / 100, 1.6) * 0.5);
+      store.set('soundLastPlayed', Date.now());
+      return true;
+    }
+    function paint() {
+      const btn = document.getElementById('soundBtn');
+      if (!btn) return;
+      const s = settings(), blocked = s.on && (!ctx || ctx.state !== 'running');
+      btn.classList.toggle('muted', !s.on);
+      btn.classList.toggle('blocked', blocked);
+      btn.title = !s.on ? 'เสียงแจ้งเตือน: ปิด (กดเพื่อเปิด)'
+        : blocked ? 'เสียงแจ้งเตือน: เปิด · คลิกที่ใดก็ได้ในหน้าเว็บ 1 ครั้ง เพื่อให้เบราว์เซอร์เล่นเสียงได้'
+        : 'เสียงแจ้งเตือน: เปิด (กดเพื่อปิด)';
+    }
+    // มีรายการรออนุมัติเพิ่มขึ้น -> เล่นเสียง (จำค่าล่าสุดร่วมกันทุกแท็บ จะได้ไม่ดังซ้ำ)
+    function check(pending) {
+      const s = settings(), prev = parseInt(store.get('soundLastPending') ?? '-1', 10);
+      store.set('soundLastPending', pending);
+      if (!s.on) return;
+      const last = parseInt(store.get('soundLastPlayed') || '0', 10);
+      if (prev >= 0 && pending > prev) play();
+      else if (s.repeat > 0 && pending > 0 && Date.now() - last >= s.repeat * 60000) play();
+    }
+    document.getElementById('soundBtn')?.addEventListener('click', () => {
+      const on = !settings().on;
+      save({ on });
+      if (on) play();
+    });
+    window.addEventListener('storage', e => { if (e.key === KEY) paint(); });
+    paint();
+    return { SOUNDS, settings, save, play, check, paint };
+  })();
+
   async function refreshBadges() {
     try {
       const r = await fetch('/api/badge');
       if (!r.ok) return;
       const d = await r.json();
+      {% if user.role in ('admin', 'agent') %}notifySound.check(d.pending || 0);{% endif %}
       const p = document.getElementById('badge-pending');
       const t = document.getElementById('badge-tickets');
       if (p) p.textContent = d.pending || '';
