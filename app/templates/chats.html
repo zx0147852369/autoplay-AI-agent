@@ -26,14 +26,14 @@
 <section class="panel">
   <div class="panel-head">
     <h2>{{ icon('chat', 16) }} รายชื่อแชท</h2>
-    <span class="count">{{ summary.monitored }} จาก {{ summary.total }} แชทที่ติดตาม</span>
+    <span class="count">{{ summary.monitored }} จาก {{ summary.total }} แชทที่ติดตาม · วิเคราะห์อัตโนมัติเมื่อมีข้อความใหม่</span>
   </div>
   <div class="table-wrap">
   <table class="grid-table">
     <thead><tr>
       <th>แชท</th><th class="shrink">ประเภท</th><th class="shrink">ติดตาม</th>
       <th class="shrink center">วันนี้</th><th class="shrink center">ทั้งหมด</th><th class="shrink">ข้อความล่าสุด</th>
-      <th class="shrink center">Ticket ค้าง</th><th class="shrink center">รออนุมัติ</th><th class="shrink"></th>
+      <th class="shrink center">Ticket ค้าง</th><th class="shrink center">รออนุมัติ</th><th class="shrink">การวิเคราะห์</th>
     </tr></thead>
     <tbody>
     {% for c in chats %}
@@ -55,9 +55,21 @@
         <td class="when">{{ last_at[c.id] | localtime if last_at.get(c.id) else '—' }}</td>
         <td class="num center">{% if n_open %}<a href="/tickets" class="tag st-open">{{ n_open }}</a>{% else %}<span class="zero">0</span>{% endif %}</td>
         <td class="num center">{% if n_pending %}<a href="/replies" class="tag rs-pending">{{ n_pending }}</a>{% else %}<span class="zero">0</span>{% endif %}</td>
-        <td class="shrink">{% if c.monitored %}
-          <form method="post" action="/chats/{{ c.id }}/analyze"><button class="sm">วิเคราะห์ตอนนี้</button></form>
-        {% endif %}</td>
+        {% set n_wait = unanalyzed.get(c.id, 0) %}
+        <td class="shrink">
+          {% if not c.monitored %}<span class="zero">—</span>
+          {% elif ai_errors.get(c.id) %}
+            <div class="ai-cell">
+              <span class="state bad"><span class="dot off"></span>ผิดพลาด</span>
+              <form method="post" action="/chats/{{ c.id }}/analyze"><button class="icon-btn sm" title="ลองใหม่ตอนนี้ (ระบบจะลองใหม่เองทุก 5 นาที)">{{ icon('refresh', 14) }}</button></form>
+            </div>
+          {% elif n_wait %}
+            <div class="ai-cell">
+              <span class="state warn"><span class="dot wait"></span>รอวิเคราะห์ {{ n_wait }}</span>
+              <form method="post" action="/chats/{{ c.id }}/analyze"><button class="icon-btn sm" title="วิเคราะห์เลยไม่ต้องรอ">{{ icon('refresh', 14) }}</button></form>
+            </div>
+          {% else %}<span class="state ok">{{ icon('check', 13) }} อัตโนมัติ</span>{% endif %}
+        </td>
       </tr>
     {% else %}
       <tr class="empty-row"><td colspan="9">{{ icon('chat', 24) }}<strong>ยังไม่มีรายชื่อแชท</strong>

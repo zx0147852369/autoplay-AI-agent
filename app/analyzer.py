@@ -3,12 +3,13 @@
 import asyncio
 import json
 import logging
+import time
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from . import ai_service
 from .database import (
-    Chat, Message, Reply, SessionLocal, Ticket, TicketAttachment, TicketEvent, get_settings, int_setting,
+    Chat, Message, Reply, SessionLocal, Ticket, TicketAttachment, TicketEvent, get_settings, int_setting, utcnow,
 )
 from .site_checker import check_site
 
@@ -16,7 +17,11 @@ log = logging.getLogger(__name__)
 
 OPEN_STATUSES = ("open", "in_progress")
 
+SWEEP_INTERVAL = 60          # ตรวจหาข้อความค้างทุก 60 วินาที
+RETRY_AFTER_ERROR = 5 * 60   # ถ้า AI ผิดพลาด รอ 5 นาทีก่อนลองใหม่ (กันโควตาฟรีหมดเร็ว)
+
 _timers: dict[int, asyncio.Task] = {}
+_last_attempt: dict[int, float] = {}
 _locks: dict[int, asyncio.Lock] = {}
 last_error: dict[int, str] = {}  # chat_id -> ข้อผิดพลาดล่าสุด (แสดงบนหน้าเว็บ)
 
@@ -41,8 +46,45 @@ async def _delayed(chat_id: int, delay: int) -> None:
         log.exception("analyze chat %s failed", chat_id)
 
 
+def is_waiting(chat_id: int) -> bool:
+    task = _timers.get(chat_id)
+    return bool(task and not task.done())
+
+
+async def sweep_once() -> None:
+    """หาแชทที่มีข้อความลูกค้ายังไม่ได้วิเคราะห์ แล้ววิเคราะห์ให้อัตโนมัติ"""
+    with SessionLocal() as db:
+        delay = int_setting(get_settings(db), "debounce_seconds", 0, 600)
+        monitored = set(db.scalars(select(Chat.id).where(Chat.monitored)))
+        rows = db.execute(
+            select(Message.chat_id, func.max(Message.date))
+            .where(Message.analyzed.is_(False), Message.is_outgoing.is_(False))
+            .group_by(Message.chat_id)
+        ).all()
+    now = utcnow()
+    for chat_id, last in rows:
+        if chat_id not in monitored or is_waiting(chat_id) or (now - last).total_seconds() < delay:
+            continue
+        if chat_id in last_error and time.monotonic() - _last_attempt.get(chat_id, 0) < RETRY_AFTER_ERROR:
+            continue
+        try:
+            await analyze(chat_id)
+        except Exception:  # noqa: BLE001 - งานเบื้องหลัง ห้ามล้มทั้งระบบ
+            log.exception("auto analyze chat %s failed", chat_id)
+
+
+async def sweeper() -> None:
+    while True:
+        await asyncio.sleep(SWEEP_INTERVAL)
+        try:
+            await sweep_once()
+        except Exception:  # noqa: BLE001
+            log.exception("sweeper failed")
+
+
 async def analyze(chat_id: int) -> str:
     """วิเคราะห์ข้อความที่ยังไม่ได้วิเคราะห์ของแชทนี้ คืนค่าข้อความสรุปผล"""
+    _last_attempt[chat_id] = time.monotonic()
     lock = _locks.setdefault(chat_id, asyncio.Lock())
     async with lock:
         with SessionLocal() as db:

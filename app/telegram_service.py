@@ -1,6 +1,7 @@
 """เชื่อมต่อบัญชี Telegram ของผู้ใช้ (userbot) ด้วย Telethon"""
 
 import logging
+from datetime import timedelta
 
 from sqlalchemy import select
 from telethon import TelegramClient, events
@@ -84,6 +85,13 @@ class TelegramService:
         # โหลดรายชื่อแชทไว้ในแคช เพื่อให้ส่งข้อความหา chat id ได้หลังรีสตาร์ท
         await client.get_dialogs()
         log.info("Telegram connected as %s", name)
+        # ข้อความที่เข้ามาระหว่างระบบปิด (เช่นตอน deploy) -> ดึงมาวิเคราะห์ต่อ
+        for chat_id in list(self._monitored):
+            try:
+                if await self.backfill(chat_id) and self.on_message:
+                    self.on_message(chat_id)
+            except (RPCError, ValueError, OSError):
+                log.exception("backfill chat %s failed", chat_id)
 
     async def stop(self) -> None:
         if self.client:
@@ -182,39 +190,77 @@ class TelegramService:
                 raise
             await self.client.send_message(entity, text)
 
-    # ------------------------------------------------------------------ events
-    async def _handle_new_message(self, event: events.NewMessage.Event) -> None:
-        if event.chat_id not in self._monitored:
-            return
-        msg = event.message
-        try:
-            sender = await event.get_sender()
-        except RPCError:
-            sender = None
-        sender_name = ""
-        if sender is not None:
-            sender_name = (
-                " ".join(filter(None, [getattr(sender, "first_name", None), getattr(sender, "last_name", None)]))
-                or getattr(sender, "title", None) or getattr(sender, "username", None) or ""
-            )
-            if getattr(sender, "username", None):
-                sender_name += f" (@{sender.username})"
-
-        media_path = await self._download_image(event.chat_id, msg)
+    async def backfill(self, chat_id: int, limit: int = 20, unanswered_hours: int = 24) -> int:
+        """ดึงข้อความล่าสุดของแชทที่ยังไม่มีในระบบ
+        ข้อความลูกค้าที่ทีมงานยังไม่ได้ตอบ (หลังข้อความล่าสุดของทีมงาน และไม่เกิน 24 ชม.) จะถูกส่งให้ AI วิเคราะห์
+        คืนค่าจำนวนข้อความที่รอวิเคราะห์"""
+        if not self.connected:
+            return 0
+        msgs = [m async for m in self.client.iter_messages(chat_id, limit=limit) if not getattr(m, "action", None)]
+        msgs.reverse()  # เก่า -> ใหม่
         with SessionLocal() as db:
-            row = Message(
-                chat_id=event.chat_id,
+            existing = set(db.scalars(select(Message.tg_message_id).where(Message.chat_id == chat_id)))
+        last_staff = max((i for i, m in enumerate(msgs) if m.out), default=-1)
+        cutoff = utcnow() - timedelta(hours=unanswered_hours)
+        waiting = 0
+        for i, m in enumerate(msgs):
+            if m.id in existing:
+                continue
+            date = m.date.replace(tzinfo=None) if m.date else utcnow()
+            needs_analysis = not m.out and i > last_staff and date >= cutoff
+            try:
+                sender = await m.get_sender()
+            except RPCError:
+                sender = None
+            media_path = await self._download_image(chat_id, m) if needs_analysis else ""
+            self._store(chat_id, m, sender, media_path, analyzed=not needs_analysis)
+            waiting += needs_analysis
+        return waiting
+
+    # ------------------------------------------------------------------ events
+    @staticmethod
+    def _sender_name(sender) -> str:
+        if sender is None:
+            return ""
+        name = (
+            " ".join(filter(None, [getattr(sender, "first_name", None), getattr(sender, "last_name", None)]))
+            or getattr(sender, "title", None) or getattr(sender, "username", None) or ""
+        )
+        if getattr(sender, "username", None):
+            name += f" (@{sender.username})"
+        return name
+
+    def _store(self, chat_id: int, msg, sender, media_path: str, analyzed: bool) -> None:
+        with SessionLocal() as db:
+            db.add(Message(
+                chat_id=chat_id,
                 tg_message_id=msg.id,
-                sender_id=event.sender_id,
-                sender_name=sender_name,
+                sender_id=getattr(msg, "sender_id", None),
+                sender_name=self._sender_name(sender),
                 is_outgoing=bool(msg.out),
                 text=msg.message or "",
                 media_path=media_path,
                 date=msg.date.replace(tzinfo=None) if msg.date else utcnow(),
-                analyzed=bool(msg.out),  # ข้อความของทีมงานเองไม่ต้องวิเคราะห์
-            )
-            db.add(row)
+                analyzed=analyzed,
+            ))
             db.commit()
+
+    async def _handle_new_message(self, event: events.NewMessage.Event) -> None:
+        if event.chat_id not in self._monitored:
+            return
+        msg = event.message
+        with SessionLocal() as db:
+            exists = db.scalar(select(Message.id).where(
+                Message.chat_id == event.chat_id, Message.tg_message_id == msg.id))
+        if exists:  # ถูกดึงมาแล้วจากการดึงย้อนหลัง
+            return
+        try:
+            sender = await event.get_sender()
+        except RPCError:
+            sender = None
+        media_path = await self._download_image(event.chat_id, msg)
+        # ข้อความของทีมงานเองไม่ต้องวิเคราะห์
+        self._store(event.chat_id, msg, sender, media_path, analyzed=bool(msg.out))
         if not msg.out and self.on_message:
             self.on_message(event.chat_id)
 

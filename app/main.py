@@ -78,8 +78,10 @@ async def lifespan(app: FastAPI):
         log.warning("ข้อมูลไม่ได้อยู่ใน Railway Volume: ตั้งค่าและข้อมูลทั้งหมดจะหายเมื่อ deploy ใหม่")
     telegram.on_message = analyzer.schedule
     startup = asyncio.create_task(telegram.start_from_db())
+    sweeper = asyncio.create_task(analyzer.sweeper())
     yield
     startup.cancel()
+    sweeper.cancel()
     await telegram.stop()
 
 
@@ -367,6 +369,9 @@ async def chats_page(request: Request):
             .where(Ticket.status.in_(analyzer.OPEN_STATUSES)).group_by(Ticket.chat_id)).all())
         pending = dict(db.execute(
             select(Reply.chat_id, func.count(Reply.id)).where(Reply.status == "pending").group_by(Reply.chat_id)).all())
+        unanalyzed = dict(db.execute(
+            select(Message.chat_id, func.count(Message.id))
+            .where(Message.analyzed.is_(False), Message.is_outgoing.is_(False)).group_by(Message.chat_id)).all())
     summary = {
         "total": len(chats),
         "monitored": sum(1 for c in chats if c.monitored),
@@ -374,7 +379,7 @@ async def chats_page(request: Request):
         "open_tickets": sum(open_tickets.values()),
     }
     return render(request, "chats.html", user, chats=chats, counts=counts, today_counts=today_counts,
-                  last_at=last_at, open_tickets=open_tickets, pending=pending, summary=summary,
+                  last_at=last_at, open_tickets=open_tickets, pending=pending, summary=summary, unanalyzed=unanalyzed,
                   connected=telegram.connected, ai_errors=analyzer.last_error)
 
 
@@ -403,7 +408,21 @@ async def chats_toggle(request: Request, chat_id: int):
         if chat:
             chat.monitored = not chat.monitored
             db.commit()
+        enabled = bool(chat and chat.monitored)
+        limit = int_setting(get_settings(db), "context_messages", 5, 100)
     telegram.reload_monitored()
+    if enabled and telegram.connected:
+        try:
+            waiting = await telegram.backfill(chat_id, limit=limit)
+        except Exception as e:  # noqa: BLE001
+            log.exception("backfill failed")
+            flash(request, f"เปิดติดตามแล้ว แต่ดึงข้อความย้อนหลังไม่สำเร็จ: {e}", "error")
+            return back("/chats")
+        if waiting:
+            analyzer.schedule(chat_id)
+            flash(request, f"เปิดติดตามแล้ว พบข้อความลูกค้าที่ยังไม่ได้ตอบ {waiting} ข้อความ กำลังวิเคราะห์ให้อัตโนมัติ")
+        else:
+            flash(request, "เปิดติดตามแล้ว ระบบจะวิเคราะห์ข้อความใหม่ให้อัตโนมัติ")
     return back("/chats")
 
 

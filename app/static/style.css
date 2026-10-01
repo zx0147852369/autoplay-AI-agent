@@ -448,6 +448,11 @@ a.strip-cell:hover { background: var(--surface-2); text-decoration: none; }
 .state.ok { color: var(--pine); }
 .state.bad { color: var(--red); }
 .state.off { color: var(--muted); }
+.state.warn { color: var(--amber); }
+.dot.wait { background: var(--amber); animation: blink 1.4s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: 0.3; } }
+.ai-cell { display: flex; align-items: center; gap: 6px; }
+.icon-btn.sm { width: 26px; height: 26px; border: 1px solid var(--line-2); background: var(--surface); }
 
 /* ---------- toolbar / checklist ---------- */
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); }
