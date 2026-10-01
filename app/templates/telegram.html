@@ -17,7 +17,8 @@
       <div class="muted small"><span class="mono">{{ account.phone }}</span> · <span class="dot live"></span> ออนไลน์</div>
     </div>
     <a class="btn" href="/chats">เลือกแชทที่จะติดตาม</a>
-    <form method="post" action="/telegram/logout" onsubmit="return confirm('ออกจากระบบ Telegram บนระบบนี้?')">
+    <form method="post" action="/telegram/logout" data-confirm-title="ออกจากระบบ Telegram?"
+          data-confirm="ระบบจะหยุดรับข้อความลูกค้าและส่งข้อความไม่ได้ จนกว่าจะเข้าสู่ระบบใหม่" data-confirm-ok="ออกจากระบบ" data-confirm-tone="warn">
       <button class="danger">ออกจากระบบ Telegram</button>
     </form>
   </div>

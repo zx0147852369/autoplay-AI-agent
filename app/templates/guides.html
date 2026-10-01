@@ -71,7 +71,8 @@
         <td class="shrink">
           <div class="row" style="flex-wrap:nowrap">
             <a class="btn sm" href="/guides/{{ g.id }}">{{ icon('edit', 13) }} แก้ไข</a>
-            <form method="post" action="/guides/{{ g.id }}/delete" onsubmit="return confirm('ลบคู่มือนี้?')">
+            <form method="post" action="/guides/{{ g.id }}/delete" data-confirm-title="ลบคู่มือ #{{ g.id }}?"
+                  data-confirm="{{ g.title }} — AI จะไม่ใช้คู่มือนี้ตอบลูกค้าอีก" data-confirm-ok="ลบคู่มือ" data-confirm-tone="danger">
               <button class="icon-btn sm del" title="ลบคู่มือ" aria-label="ลบคู่มือ #{{ g.id }}">{{ cicon('delete', 17) }}</button>
             </form>
           </div>

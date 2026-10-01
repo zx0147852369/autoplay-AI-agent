@@ -86,7 +86,9 @@
       <span class="muted small dt-hint">หลังส่งแล้ว โปรแกรมเมอร์ reply โพสต์นี้เพื่ออัปเดตสถานะได้</span>
       <form method="post" action="/tickets/{{ t.id }}/post-dev" id="post-{{ t.id }}">
         <input type="hidden" name="next" value="/replies?box=dev">
-        <button class="go" onclick="return confirm('ส่ง Ticket #{{ t.id }} เข้ากลุ่มโปรแกรมเมอร์?')">{{ icon('send', 15) }} อนุมัติและส่งเข้ากลุ่ม</button>
+        <button class="go" data-confirm-title="ส่ง Ticket #{{ t.id }} เข้ากลุ่มโปรแกรมเมอร์?"
+          data-confirm="ข้อความด้านล่างจะถูกโพสต์ใน {{ dev_group_title }} พร้อมรูปจากลูกค้า" data-confirm-ok="ส่งเข้ากลุ่ม"
+          data-confirm-tone="send" data-confirm-preview="textarea[form=post-{{ t.id }}]">{{ icon('send', 15) }} อนุมัติและส่งเข้ากลุ่ม</button>
       </form>
     </footer>
   </article>
@@ -127,7 +129,9 @@
           <label class="field">ข้อความที่จะส่ง
             <textarea name="text" rows="5" required>{{ r.final_text }}</textarea></label>
           <div class="actions end">
-            <button class="go" onclick="return confirm('ส่งข้อความนี้ถึงลูกค้า?')">{{ icon('send', 15) }} อนุมัติและส่ง</button>
+            <button class="go" data-confirm-title="ส่งข้อความถึงลูกค้า?"
+              data-confirm="ข้อความด้านล่างจะถูกส่งในแชท {{ chat_titles.get(r.chat_id, r.chat_id) }} ทันที" data-confirm-ok="ส่งข้อความ"
+              data-confirm-tone="send" data-confirm-preview="#approve-{{ r.id }} textarea">{{ icon('send', 15) }} อนุมัติและส่ง</button>
           </div>
         </form>
       </div>

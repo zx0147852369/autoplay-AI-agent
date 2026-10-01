@@ -613,3 +613,30 @@ a.strip-cell:hover .cicon { transform: translateY(-2px) scale(1.08); }
 .guide-form textarea[name=answer] { min-height: 260px; font-size: 0.92rem; line-height: 1.6; }
 .guide-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
 @media (max-width: 1000px) { .guide-layout { grid-template-columns: 1fr; } }
+
+/* ---------- popup ยืนยัน ---------- */
+.cdialog {
+  border: 0; padding: 0; border-radius: 14px; width: min(440px, calc(100vw - 32px)); max-height: calc(100vh - 32px);
+  background: var(--surface); color: var(--ink); box-shadow: 0 24px 64px rgba(28, 27, 25, 0.28); overflow: hidden;
+}
+.cdialog::backdrop { background: rgba(28, 27, 25, 0.42); backdrop-filter: blur(2px); }
+.cdialog[open] { animation: cd-pop .16s ease-out; }
+.cdialog[open]::backdrop { animation: cd-fade .16s ease-out; }
+@keyframes cd-pop { from { opacity: 0; transform: translateY(10px) scale(0.97); } }
+@keyframes cd-fade { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .cdialog[open], .cdialog[open]::backdrop { animation: none; } }
+.cd-body { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; padding: 22px 22px 18px; }
+.cd-ic { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; background: var(--amber-tint); border: 1px solid #f1d9a9; }
+.cdialog.danger .cd-ic { background: var(--red-tint); border-color: #f0c9c4; }
+.cdialog.send .cd-ic { background: var(--pine-tint); border-color: #bfe9d3; }
+.cd-title { margin: 3px 0 5px; font-size: 1.06rem; font-weight: 600; line-height: 1.4; word-break: break-word; }
+.cd-msg { margin: 0; color: var(--ink-2); font-size: 0.9rem; line-height: 1.6; word-break: break-word; }
+.cd-preview {
+  grid-column: 1 / -1; white-space: pre-wrap; word-break: break-word; font-size: 0.86rem; line-height: 1.55;
+  max-height: 220px; overflow: auto; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 4px 10px 10px 10px;
+}
+.cd-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 22px; background: var(--surface-2); border-top: 1px solid var(--line); }
+.cd-actions button { min-width: 96px; }
+button.danger-solid { background: var(--red); color: #fff; border-color: #96200f; }
+button.danger-solid:hover { background: #96200f; border-color: #96200f; }

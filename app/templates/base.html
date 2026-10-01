@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=29">
+  <link rel="stylesheet" href="/static/style.css?v=30">
 </head>
 <body>
 {% if user %}
@@ -78,6 +78,23 @@
   {% block auth %}{% endblock %}
 {% endif %}
 
+<dialog class="cdialog" id="confirmDialog" aria-labelledby="cdTitle" aria-describedby="cdMsg">
+  <form method="dialog">
+    <div class="cd-body">
+      <span class="cd-ic"><img id="cdIcon" src="/static/icons/question-circle.svg" width="26" height="26" alt=""></span>
+      <div class="cd-text">
+        <h3 class="cd-title" id="cdTitle">ยืนยัน</h3>
+        <p class="cd-msg" id="cdMsg"></p>
+      </div>
+      <div class="cd-preview" id="cdPreview" hidden></div>
+    </div>
+    <div class="cd-actions">
+      <button value="cancel" class="ghost" id="cdCancel">ยกเลิก</button>
+      <button value="ok" id="cdOk">ตกลง</button>
+    </div>
+  </form>
+</dialog>
+
 <div class="toasts">
   {% for f in flashes %}
     <div class="toast {{ f.kind }}" role="status">
@@ -93,6 +110,46 @@
     const close = () => { t.classList.add('leaving'); setTimeout(() => t.remove(), 200); };
     t.querySelector('.toast-x').onclick = close;
     if (t.classList.contains('ok')) setTimeout(close, 4000);
+  });
+  // popup ยืนยันแทน confirm() ของเบราว์เซอร์
+  // ใส่ data-confirm="ข้อความ" ที่ <form> หรือปุ่ม submit
+  //   data-confirm-title, data-confirm-ok (ข้อความปุ่ม), data-confirm-tone (danger / send / warn)
+  //   data-confirm-preview (selector ช่องข้อความที่จะแสดงตัวอย่าง), data-confirm-count (selector ที่นับแทน {n})
+  const cd = document.getElementById('confirmDialog');
+  const CD_ICONS = { danger: 'delete', send: 'send', warn: 'warning' };
+  const CD_OK = { danger: 'danger-solid', send: 'go', warn: 'primary' };
+  function askConfirm(o) {
+    const tone = o.tone || 'warn';
+    cd.className = 'cdialog ' + tone;
+    document.getElementById('cdIcon').src = '/static/icons/' + (CD_ICONS[tone] || 'question-circle') + '.svg';
+    document.getElementById('cdTitle').textContent = o.title || 'ยืนยันการทำรายการ';
+    document.getElementById('cdMsg').textContent = o.message || '';
+    const pv = document.getElementById('cdPreview');
+    pv.hidden = !o.preview; pv.textContent = o.preview || '';
+    const ok = document.getElementById('cdOk');
+    ok.textContent = o.ok || 'ตกลง';
+    ok.className = CD_OK[tone] || 'primary';
+    cd.returnValue = '';
+    cd.showModal();
+    (tone === 'danger' ? document.getElementById('cdCancel') : ok).focus();
+    return new Promise(resolve => cd.addEventListener('close', () => resolve(cd.returnValue === 'ok'), { once: true }));
+  }
+  cd.addEventListener('click', e => { if (e.target === cd) cd.close(); });  // คลิกนอกกล่อง = ยกเลิก
+  document.addEventListener('submit', async e => {
+    const form = e.target, btn = e.submitter;
+    const src = btn && btn.dataset.confirm !== undefined ? btn : (form.dataset.confirm !== undefined ? form : null);
+    if (!src) return;
+    if (form.dataset.confirmed) { delete form.dataset.confirmed; return; }
+    e.preventDefault();
+    const d = src.dataset;
+    const count = d.confirmCount ? document.querySelectorAll(d.confirmCount).length : 0;
+    const fill = s => (s || '').replace('{n}', count);
+    const previewEl = d.confirmPreview ? document.querySelector(d.confirmPreview) : null;
+    const yes = await askConfirm({ title: fill(d.confirmTitle), message: fill(d.confirm), ok: d.confirmOk,
+                                   tone: d.confirmTone, preview: previewEl ? previewEl.value.trim() : '' });
+    if (!yes) return;
+    form.dataset.confirmed = '1';
+    btn ? form.requestSubmit(btn) : form.requestSubmit();
   });
   const menuBtn = document.getElementById('menuBtn');
   if (menuBtn) {

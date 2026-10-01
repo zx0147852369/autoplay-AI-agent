@@ -53,7 +53,8 @@
   {% set can_delete = user.role == 'admin' %}
   {% if can_delete %}
   <form method="post" action="/tickets/delete" id="bulkForm" class="bulk-bar" hidden
-        onsubmit="return confirm('ลบ ticket ที่เลือก ' + document.querySelectorAll('.pick:checked').length + ' รายการ? ลบแล้วกู้คืนไม่ได้')">
+        data-confirm-title="ลบ ticket ที่เลือก {n} รายการ?" data-confirm="ประวัติและรูปแนบของ ticket เหล่านี้จะถูกลบด้วย กู้คืนไม่ได้"
+        data-confirm-ok="ลบทั้งหมด" data-confirm-tone="danger" data-confirm-count=".pick:checked">
     <span><b id="pickCount">0</b> รายการที่เลือก</span>
     <button class="danger sm">{{ cicon('delete', 15) }} ลบที่เลือก</button>
     <button type="button" class="ghost sm" onclick="pickAll(false)">ยกเลิก</button>
@@ -84,7 +85,7 @@
         <td class="when">{{ t.created_at | localtime }}</td>
         {% if can_delete %}
         <td class="shrink" onclick="event.stopPropagation()">
-          <form method="post" action="/tickets/{{ t.id }}/delete" onsubmit="return confirm({{ ('ลบ ticket #' ~ t.id ~ ' ' ~ t.title ~ '? ลบแล้วกู้คืนไม่ได้') | tojson | forceescape }})">
+          <form method="post" action="/tickets/{{ t.id }}/delete" data-confirm-title="ลบ ticket #{{ t.id }}?" data-confirm="{{ t.title }} — ลบแล้วกู้คืนไม่ได้" data-confirm-ok="ลบ ticket" data-confirm-tone="danger">
             <button class="icon-btn sm del" title="ลบ ticket" aria-label="ลบ ticket #{{ t.id }}">{{ cicon('delete', 17) }}</button>
           </form>
         </td>

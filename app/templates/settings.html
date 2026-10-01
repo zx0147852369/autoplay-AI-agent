@@ -138,7 +138,7 @@
         <span class="avatar">{{ u.username[:1] | upper }}</span>
         <span class="li-main"><span class="li-title">{{ u.username }}{% if u.id == user.id %} <span class="muted small">(คุณ)</span>{% endif %}</span>
           <span class="li-sub">{{ ROLES[u.role] }} · เพิ่มเมื่อ {{ u.created_at | localtime }}</span></span>
-        {% if u.id != user.id %}<form method="post" action="/users/{{ u.id }}/delete" onsubmit="return confirm({{ ('ลบผู้ใช้ ' ~ u.username ~ '?') | tojson | forceescape }})"><button class="sm danger">ลบ</button></form>{% endif %}
+        {% if u.id != user.id %}<form method="post" action="/users/{{ u.id }}/delete" data-confirm-title="ลบผู้ใช้ {{ u.username }}?" data-confirm="ผู้ใช้นี้จะเข้าสู่ระบบหลังบ้านไม่ได้อีก" data-confirm-ok="ลบผู้ใช้" data-confirm-tone="danger"><button class="sm danger">ลบ</button></form>{% endif %}
       </div>
     {% endfor %}
   </div>

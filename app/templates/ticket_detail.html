@@ -130,7 +130,8 @@
       </form>
       {% if user.role == 'admin' %}
       <form method="post" action="/tickets/{{ ticket.id }}/delete" class="delete-zone"
-            onsubmit="return confirm({{ ('ลบ ticket #' ~ ticket.id ~ ' ' ~ ticket.title ~ '? ประวัติและรูปแนบของ ticket นี้จะถูกลบ กู้คืนไม่ได้') | tojson | forceescape }})">
+            data-confirm-title="ลบ ticket #{{ ticket.id }}?" data-confirm="{{ ticket.title }} — ประวัติและรูปแนบของ ticket นี้จะถูกลบด้วย กู้คืนไม่ได้"
+            data-confirm-ok="ลบ ticket" data-confirm-tone="danger">
         <button class="danger sm block">{{ cicon('delete', 15) }} ลบ ticket นี้</button>
       </form>
       {% endif %}
