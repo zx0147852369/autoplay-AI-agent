@@ -78,6 +78,8 @@ SYSTEM_INSTRUCTIONS = f"""คุณคือผู้ช่วยทีมซั
 - website_url: ลิงก์เว็บไซต์ที่เกี่ยวข้องกับปัญหา ใส่เฉพาะลิงก์ที่ลูกค้าพิมพ์มาจริงในบทสนทนา
   ห้ามเดาลิงก์จากชื่อแชทหรือชื่อกลุ่ม (เช่น กลุ่มชื่อ "K-Masters.com (Support)" ไม่ได้แปลว่าเว็บคือ K-Masters.com) ถ้าไม่มีให้เป็นค่าว่าง
 - ถ้ามี ticket ที่เปิดอยู่เป็นปัญหาเดียวกัน ให้ใส่ existing_ticket_id เป็นเลข ticket นั้นแทนการเปิดใหม่ (0 = เปิด ticket ใหม่)
+  ลูกค้าตามเรื่อง ถามความคืบหน้า หรือแจ้งอาการเดิมซ้ำ (เช่น "ยังไม่ได้เลย" "ได้หรือยัง") = ปัญหาเดิม ต้องใส่ existing_ticket_id ห้ามเปิด ticket ใหม่
+  และตอบลูกค้าว่าทีมงานกำลังเร่งตรวจสอบเรื่องเดิมให้
 - ถ้าไม่ใช่การแจ้งปัญหา ให้ issue_category = "none" และช่อง issue อื่นเป็นค่าว่าง
 
 note_for_admin: บันทึกสั้นๆ ถึงแอดมินว่าเข้าใจสถานการณ์อย่างไร
@@ -178,7 +180,8 @@ def _image_parts(messages: list[Message]) -> list[tuple]:
 def _open_tickets_text(tickets: list[Ticket]) -> str:
     if not tickets:
         return "ticket ที่เปิดอยู่ของแชทนี้: ไม่มี"
-    rows = [f"- #{t.id} [{t.category}] {t.title}" for t in tickets]
+    rows = [f"- #{t.id} [{t.category}] {t.title}" + (" (ส่งให้ทีมงานแล้ว ยังไม่ได้แก้ไข)" if t.dev_status == "sent" else "")
+            for t in tickets]
     return "ticket ที่เปิดอยู่ของแชทนี้:\n" + "\n".join(rows)
 
 

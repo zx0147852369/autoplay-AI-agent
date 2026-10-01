@@ -282,13 +282,38 @@ async def post_customer_update(ticket_id: int, messages: list[Message]) -> None:
         # ยังไม่เคยส่งเข้ากลุ่ม: ถ้ารออนุมัติอยู่ ข้อมูลใหม่จะรวมไปตอนอนุมัติเอง / ถ้ายังไม่เข้าคิว -> เข้าคิว
         await queue_ticket(ticket_id)
         return
-    lines = [f"ข้อมูลเพิ่มเติมจากลูกค้า · Ticket #{ticket_id}"]
+    lines = [followup_header(ticket_id)]
     lines += [f"- {m.sender_name or 'ลูกค้า'}: {m.text or '(รูปภาพ)'}" for m in messages]
     ids = [await telegram.send_text(group_id, "\n".join(lines), reply_to=root)]
     photos = [str(MEDIA_DIR / m.media_path) for m in messages if m.media_path][:MAX_PHOTOS]
     if photos:
         ids += await telegram.send_files(group_id, photos, reply_to=ids[0])
     _save_links(ticket_id, group_id, ids)
+
+
+def followup_header(ticket_id: int) -> str:
+    """หัวข้อความตามเรื่อง: ticket ไหน ส่งไปนานแค่ไหนแล้ว ตามมากี่ครั้ง (+ แท็กผู้ดูแล)"""
+    with SessionLocal() as db:
+        ticket = db.get(Ticket, ticket_id)
+        sent_at = db.scalar(select(func.min(TicketEvent.created_at)).where(
+            TicketEvent.ticket_id == ticket_id, TicketEvent.kind == "dev",
+            TicketEvent.body.like("%ส่ง%เข้ากลุ่มโปรแกรมเมอร์แล้ว%")))
+        followups = db.scalar(select(func.count(TicketEvent.id)).where(
+            TicketEvent.ticket_id == ticket_id, TicketEvent.kind == "dev", TicketEvent.body.like("ลูกค้าตามเรื่อง%")))
+        db.add(TicketEvent(ticket_id=ticket_id, kind="dev", author="ระบบ",
+                           body="ลูกค้าตามเรื่อง/ส่งข้อมูลเพิ่ม ส่งใต้โพสต์เดิมในกลุ่ม (ไม่ส่ง ticket ซ้ำ)"))
+        db.commit()
+        title, category = (ticket.title, ticket.category) if ticket else ("", "")
+    head = f"ลูกค้าตามเรื่อง · Ticket #{ticket_id}" + (f" {title}" if title else "")
+    if followups:
+        head += f" (ตามครั้งที่ {followups + 1})"
+    if sent_at:
+        hours = (utcnow() - sent_at).total_seconds() / 3600
+        head += f"\nส่งเรื่องไปแล้ว {int(hours)} ชม. {int(hours * 60) % 60} นาที ยังไม่ได้แก้ไข" if hours >= 1 else \
+            f"\nส่งเรื่องไปแล้ว {int(hours * 60)} นาที ยังไม่ได้แก้ไข"
+    if mentions := handler_mentions(category):
+        head += f"\n{mentions}"
+    return head
 
 
 # ---------------------------------------------------------------- ข้อความจากโปรแกรมเมอร์

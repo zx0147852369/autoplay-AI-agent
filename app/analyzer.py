@@ -341,6 +341,11 @@ async def _save_ticket(chat_id: int, result: ai_service.Analysis, new_messages: 
             if not ticket or ticket.chat_id != chat_id or ticket.status not in OPEN_STATUSES:
                 ticket = None
         if ticket is None:
+            # AI ให้เปิดใหม่ แต่แชทนี้มี ticket ปัญหาเดียวกันที่ยังไม่แก้ -> ใช้ใบเดิม (ไม่ส่งเข้ากลุ่มซ้ำ แค่ตามเรื่อง)
+            ticket = find_duplicate(db, chat_id, result)
+            if ticket:
+                log.info("ปัญหาเดิมของ ticket #%s ในแชท %s ไม่เปิดใบใหม่", ticket.id, chat_id)
+        if ticket is None:
             ticket = Ticket(
                 chat_id=chat_id,
                 category=result.issue_category,
@@ -384,6 +389,28 @@ async def _save_ticket(chat_id: int, result: ai_service.Analysis, new_messages: 
     except Exception:  # noqa: BLE001
         log.exception("notify dev group failed for ticket %s", ticket_id)
     return ticket_id
+
+
+# หมวดกว้างๆ ต้องดูหัวข้อด้วยว่าเป็นเรื่องเดียวกันไหม
+BROAD_CATEGORIES = ("other", "payment_other")
+DUPLICATE_TITLE_RATIO = 0.55
+
+
+def find_duplicate(db, chat_id: int, result: ai_service.Analysis) -> Ticket | None:
+    """ticket ที่ยังไม่แก้ในแชทเดียวกันที่เป็นปัญหาเดียวกัน (หมวดเดียวกัน หรือหัวข้อคล้ายกัน)"""
+    title = re.sub(r"\s+", " ", result.issue_title or "").strip()
+    best = None
+    for t in db.scalars(select(Ticket).where(Ticket.chat_id == chat_id, Ticket.status.in_(OPEN_STATUSES))
+                        .order_by(Ticket.created_at.desc())):
+        same_cat = t.category == result.issue_category and t.category not in BROAD_CATEGORIES
+        # หมวดเฉพาะคนละหมวด (เช่น ฝาก vs ถอน) ไม่ใช่เรื่องเดียวกัน ดูหัวข้อเฉพาะเมื่อมีฝั่งใดเป็นหมวดกว้าง
+        broad = t.category in BROAD_CATEGORIES or result.issue_category in BROAD_CATEGORIES
+        similar = broad and bool(title) and SequenceMatcher(None, title, t.title or "").ratio() >= DUPLICATE_TITLE_RATIO
+        if similar or same_cat:
+            if t.dev_status == "sent":
+                return t  # ส่งให้ทีมงานแล้ว -> ตามเรื่องใบนี้
+            best = best or t
+    return best
 
 
 async def run_site_check(ticket_id: int) -> dict | None:
