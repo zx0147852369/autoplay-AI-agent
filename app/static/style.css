@@ -86,6 +86,9 @@ hr.divider { border: 0; border-top: 1px solid var(--line); margin: 16px 0; }
 .nav-item.active { background: var(--surface); border-color: var(--line); color: var(--ink); font-weight: 600; box-shadow: inset 3px 0 0 var(--mint), 0 1px 0 rgba(0, 0, 0, 0.03); }
 .nav-item .ic { color: var(--muted); }
 .nav-item.active .ic { color: var(--pine); }
+.nav-item .cicon { width: 20px; height: 20px; opacity: 0.85; filter: saturate(0.85); transition: transform .2s ease, opacity .15s, filter .15s; }
+.nav-item:hover .cicon { opacity: 1; filter: none; transform: translateY(-1px) scale(1.08); }
+.nav-item.active .cicon { opacity: 1; filter: none; }
 .nav-badge {
   margin-left: auto; font-family: var(--mono); font-size: 0.74rem; font-weight: 500;
   padding: 0 6px; border-radius: 4px; background: var(--grey-tint); color: var(--ink-2); line-height: 1.6;

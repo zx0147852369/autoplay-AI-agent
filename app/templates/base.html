@@ -1,4 +1,4 @@
-{% from "_icons.html" import icon %}<!doctype html>
+{% from "_icons.html" import icon, cicon %}<!doctype html>
 <html lang="th">
 <head>
   <meta charset="utf-8">
@@ -10,13 +10,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=19">
+  <link rel="stylesheet" href="/static/style.css?v=20">
 </head>
 <body>
 {% if user %}
 {% macro nav_item(href, ic, label, badge='') -%}
   {% set active = (path == '/' and href == '/') or (href != '/' and path.startswith(href)) %}
-  <a href="{{ href }}" class="nav-item {{ 'active' if active }}">{{ icon(ic, 17) }}<span>{{ label }}</span>
+  <a href="{{ href }}" class="nav-item {{ 'active' if active }}">{{ cicon(ic, 20) }}<span>{{ label }}</span>
     {%- if badge %}<span class="nav-badge {{ 'hot' if badge == 'badge-pending' }}" id="{{ badge }}"></span>{% endif %}</a>
 {%- endmacro %}
 <aside class="sidebar" id="sidebar">
@@ -27,16 +27,16 @@
   <nav class="nav">
     {% if user.role in ('admin', 'agent') %}
       {{ nav_item('/', 'home', 'ภาพรวม') }}
-      {{ nav_item('/replies', 'inbox', 'รออนุมัติ', 'badge-pending') }}
+      {{ nav_item('/replies', 'mail-clock', 'รออนุมัติ', 'badge-pending') }}
     {% endif %}
-    {{ nav_item('/tickets', 'ticket', 'Tickets', 'badge-tickets') }}
+    {{ nav_item('/tickets', 'clipboard-task', 'Tickets', 'badge-tickets') }}
     {% if user.role in ('admin', 'agent') %}
-      {{ nav_item('/chats', 'chat', 'แชทลูกค้า') }}
+      {{ nav_item('/chats', 'chat-multiple', 'แชทลูกค้า') }}
     {% endif %}
     {% if user.role == 'admin' %}
       <div class="nav-label">ระบบ</div>
-      {{ nav_item('/telegram', 'send', 'บัญชี Telegram') }}
-      {{ nav_item('/settings', 'sliders', 'ตั้งค่า') }}
+      {{ nav_item('/telegram', 'telegram', 'บัญชี Telegram') }}
+      {{ nav_item('/settings', 'settings', 'ตั้งค่า') }}
     {% endif %}
   </nav>
   <div class="sidebar-foot">
