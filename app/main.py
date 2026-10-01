@@ -303,7 +303,9 @@ async def dashboard(request: Request):
     ]
     system = [
         ("Telegram", telegram.connected, account.me_name or "ยังไม่ได้เชื่อมต่อ"),
-        ("โมเดล AI", model_key_ready(model), model_label + ("" if model_key_ready(model) else " · ยังไม่มี API key")),
+        ("โมเดล AI", model_key_ready(model), model_label + ("" if model_key_ready(model) else " · ยังไม่มี API key")
+         + (f" · ตอนนี้ใช้รุ่นสำรอง {ai_service.last_model_used} (รุ่นหลักล่มชั่วคราว)"
+            if ai_service.last_model_used and ai_service.last_model_used != model else "")),
         ("การเก็บข้อมูล", not EPHEMERAL_STORAGE, "ถาวร (Volume)" if not EPHEMERAL_STORAGE else "ชั่วคราว หายเมื่อ deploy"),
         ("กลุ่มโปรแกรมเมอร์", bool(dev_title) and not dev_bridge.last_error,
          dev_bridge.last_error or dev_title or "ยังไม่ได้เลือกกลุ่ม (ตั้งค่า → กลุ่มแจ้งปัญหาโปรแกรมเมอร์)"),

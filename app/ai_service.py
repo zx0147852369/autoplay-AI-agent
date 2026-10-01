@@ -117,7 +117,13 @@ class Analysis:
 
 
 class AIError(Exception):
-    pass
+    def __init__(self, message: str, retryable: bool = False):
+        super().__init__(message)
+        self.retryable = retryable  # ลองโมเดลอื่นแทนได้ (ล่มชั่วคราว / โควตาเต็ม / ไม่พบโมเดล)
+
+
+# โมเดลที่ใช้ได้จริงในคำขอล่าสุด (แสดงในหน้าเว็บเมื่อระบบสลับไปใช้รุ่นสำรอง)
+last_model_used = ""
 
 
 def is_gemini(model: str) -> bool:
@@ -197,6 +203,28 @@ def _strip_additional_properties(schema):
 
 
 async def _call_gemini(model: str, system: str, parts: list[tuple], schema: dict | None) -> str:
+    """เรียกรุ่นที่เลือก ถ้าล่ม (503) โควตาเต็ม (429) หรือไม่มีรุ่นนี้ -> สลับไปรุ่นฟรีอื่นอัตโนมัติ"""
+    global last_model_used
+    candidates = [model] + [m for m in GEMINI_MODELS if m != model]
+    errors_seen = []
+    for name in candidates:
+        try:
+            text = await _call_gemini_once(name, system, parts, schema)
+        except AIError as e:
+            if not e.retryable:
+                raise
+            errors_seen.append(f"{name}: {e}")
+            log.warning("Gemini %s ใช้ไม่ได้ (%s) ลองรุ่นถัดไป", name, e)
+            continue
+        if name != model:
+            log.info("ใช้ %s แทน %s ชั่วคราว", name, model)
+        last_model_used = name
+        return text
+    raise AIError("Gemini ใช้ไม่ได้ทุกรุ่นตอนนี้ (" + " / ".join(errors_seen) + ") ระบบจะลองใหม่อัตโนมัติ",
+                  retryable=True)
+
+
+async def _call_gemini_once(model: str, system: str, parts: list[tuple], schema: dict | None) -> str:
     contents = [
         p[1] if p[0] == "text" else genai_types.Part.from_bytes(data=p[1], mime_type=p[2]) for p in parts
     ]
@@ -211,14 +239,14 @@ async def _call_gemini(model: str, system: str, parts: list[tuple], schema: dict
         response = await _gemini_client().aio.models.generate_content(model=model, contents=contents, config=config)
     except genai_errors.ClientError as e:
         if e.code == 429:
-            raise AIError("โควตาฟรีของ Gemini เต็ม (เรียกบ่อยเกินไป) ลองใหม่ภายหลัง หรือเปลี่ยนเป็นรุ่น Flash-Lite") from e
+            raise AIError("โควตาฟรีเต็ม (429)", retryable=True) from e
         if e.code in (400, 401, 403) and "key" in str(e).lower():
             raise AIError("GEMINI_API_KEY ไม่ถูกต้อง") from e
         if e.code == 404:
-            raise AIError(f"ไม่พบโมเดล {model} ลองเลือกรุ่นอื่นในหน้าตั้งค่า") from e
+            raise AIError("ไม่พบโมเดลนี้ (404)", retryable=True) from e
         raise AIError(f"Gemini ตอบกลับผิดพลาด ({e.code}): {e.message}") from e
     except genai_errors.ServerError as e:
-        raise AIError(f"Gemini ขัดข้องชั่วคราว ({e.code}) ลองใหม่ภายหลัง") from e
+        raise AIError(f"ขัดข้องชั่วคราว ({e.code})", retryable=True) from e
     except (httpx.HTTPError, OSError) as e:
         raise AIError("เชื่อมต่อ Gemini ไม่ได้ ตรวจสอบอินเทอร์เน็ต") from e
 
