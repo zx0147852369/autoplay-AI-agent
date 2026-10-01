@@ -410,17 +410,31 @@ async def dashboard(request: Request):
 
 
 @app.get("/logs")
-async def logs_page(request: Request, level: str = ""):
+async def logs_page(request: Request, level: str = "", day: str = ""):
     user = current_user(request, "admin")
+    days = logbuf.available_days()
+    if day and day in days:  # ดูไฟล์ย้อนหลังของวันนั้น (ไม่ใช่ live)
+        recs = logbuf.read_day(day, level=level)
+        return render(request, "logs.html", user, logs=recs, last=0, total=len(recs),
+                      level=level, days=days, day=day, live=False)
     data = logbuf.records(level=level)
     return render(request, "logs.html", user, logs=data["records"], last=data["last"],
-                  total=data["total"], level=level)
+                  total=data["total"], level=level, days=days, day="", live=True)
 
 
 @app.get("/api/logs")
 async def api_logs(request: Request, after: int = 0, level: str = ""):
     current_user(request, "admin")
     return JSONResponse(logbuf.records(after=after, level=level))
+
+
+@app.get("/logs/download")
+async def logs_download(request: Request, day: str = ""):
+    current_user(request, "admin")
+    path = logbuf.day_path(day)
+    if not path:
+        return back("/logs")
+    return FileResponse(path, media_type="text/plain; charset=utf-8", filename=f"log-{day}.log")
 
 
 @app.get("/system")

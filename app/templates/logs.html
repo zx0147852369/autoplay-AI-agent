@@ -5,7 +5,7 @@
 <div class="page-head">
   <div>
     <h1>Log ระบบ</h1>
-    <p class="sub">บันทึกการทำงานล่าสุดของบอท (บรรทัดเดียวกับที่ขึ้นใน Railway) · เก็บในหน่วยความจำ ~{{ total }} บรรทัด หายเมื่อดีพลอยใหม่ · ประวัติเต็มดูได้ที่ Railway</p>
+    <p class="sub">บันทึกการทำงานของบอท · เก็บเป็นไฟล์รายวันบน Volume ถาวร วันละ 1 ไฟล์ 30 วันล่าสุด เลือกดู/ดาวน์โหลดย้อนหลังได้ · "วันนี้ (สด)" อัปเดตเรียลไทม์</p>
   </div>
 </div>
 
@@ -13,14 +13,19 @@
   <div class="panel-head logbar">
     <h2>{{ cicon('logs', 20) }} บันทึกการทำงาน</h2>
     <div class="logtools">
-      <form method="get" action="/logs" id="lvlForm">
-        <select name="level" onchange="document.getElementById('lvlForm').submit()">
+      <form method="get" action="/logs" id="logForm">
+        <select name="day" onchange="document.getElementById('logForm').submit()">
+          <option value="" {{ 'selected' if not day }}>วันนี้ (สด)</option>
+          {% for d in days %}<option value="{{ d }}" {{ 'selected' if day == d }}>{{ d }}{{ ' (วันนี้)' if loop.first and not day }}</option>{% endfor %}
+        </select>
+        <select name="level" onchange="document.getElementById('logForm').submit()">
           {% for v, lbl in [('', 'ทุกระดับ'), ('INFO', 'INFO ขึ้นไป'), ('WARNING', 'คำเตือนขึ้นไป'), ('ERROR', 'ข้อผิดพลาดเท่านั้น')] %}
             <option value="{{ v }}" {{ 'selected' if level == v }}>{{ lbl }}</option>
           {% endfor %}
         </select>
       </form>
-      <label class="check-inline"><input type="checkbox" id="logFollow" checked> ตามอัตโนมัติ</label>
+      {% if day or days %}<a class="btn sm" href="/logs/download?day={{ day or days[0] }}">{{ icon('external', 13) }} ดาวน์โหลด</a>{% endif %}
+      {% if live %}<label class="check-inline"><input type="checkbox" id="logFollow" checked> ตามอัตโนมัติ</label>{% endif %}
       <button type="button" class="btn sm" id="logClear">ล้างหน้าจอ</button>
     </div>
   </div>
@@ -35,6 +40,7 @@
     const view = document.getElementById('logview');
     const status = document.getElementById('logStatus');
     const follow = document.getElementById('logFollow');
+    const live = {{ 'true' if live else 'false' }};
     const level = new URLSearchParams(location.search).get('level') || '';
     let last = 0, shown = 0;
 
@@ -47,7 +53,7 @@
     }
     function add(recs) {
       if (!recs.length) return;
-      const stick = follow.checked && atBottom();
+      const stick = (!follow || follow.checked) && atBottom();
       const frag = document.createDocumentFragment();
       for (const r of recs) {
         const line = document.createElement('div');
@@ -73,7 +79,8 @@
       add(init.records); last = Math.max(last, init.last || 0);
       view.scrollTop = view.scrollHeight;
     } catch (e) {}
-    if (!shown) status.textContent = 'ยังไม่มี log';
+    if (!shown) status.textContent = 'ยังไม่มี log ในช่วงนี้';
+    else if (!live) status.textContent = `แสดง ${shown} บรรทัด (ไฟล์ย้อนหลัง)`;
 
     async function poll() {
       try {
@@ -81,7 +88,7 @@
         if (r.ok) { const d = await r.json(); add(d.records); }
       } catch (e) {}
     }
-    setInterval(poll, 3000);
+    if (live) setInterval(poll, 3000);
     document.getElementById('logClear').addEventListener('click', () => { view.replaceChildren(); shown = 0; status.textContent = 'ล้างหน้าจอแล้ว (log ใหม่จะแสดงต่อ)'; });
   })();
 </script>
