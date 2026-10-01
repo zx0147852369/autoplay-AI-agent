@@ -359,6 +359,11 @@ a.tag:hover { text-decoration: none; border-color: var(--line-2); }
 .site-status.down .state { color: var(--red); }
 .site-status.up .state { color: var(--pine); }
 .site-status.moved .state { color: var(--amber); }
+.site-edit { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); display: flex; flex-direction: column; gap: 6px; }
+.card.site-edit { border-top: 1px solid var(--line); margin-top: 0; }
+.site-edit .row input { flex: 1; }
+.check-inline { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 0.84rem; font-weight: 400; color: var(--ink-2); cursor: pointer; }
+.check-inline input { width: 15px; height: 15px; accent-color: var(--pine); flex-shrink: 0; }
 .tl-pics { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 .tl-pics img { width: 96px; height: 72px; object-fit: cover; border-radius: var(--r); border: 1px solid var(--line); display: block; }
 .tl-pics a:hover img { border-color: var(--line-2); }

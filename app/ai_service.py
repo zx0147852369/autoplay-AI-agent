@@ -68,7 +68,8 @@ SYSTEM_INSTRUCTIONS = f"""คุณคือผู้ช่วยทีมซั
 - issue_title: หัวข้อสั้นๆ ภาษาไทย
 - issue_summary: สรุปสำหรับโปรแกรมเมอร์ ระบุอาการ, สิ่งที่ลูกค้าทำ, ข้อความ error, เวลาที่เกิด, ยูสเซอร์/ข้อมูลอ้างอิงของลูกค้า และสิ่งที่เห็นในรูปภาพ (ถ้ามี)
 - severity: low / medium / high / critical (critical = ลูกค้าหลายคนใช้งานไม่ได้ หรือเว็บล่มทั้งระบบ)
-- website_url: ลิงก์เว็บไซต์ที่เกี่ยวข้องกับปัญหา (ค่าว่างถ้าไม่มี)
+- website_url: ลิงก์เว็บไซต์ที่เกี่ยวข้องกับปัญหา ใส่เฉพาะลิงก์ที่ลูกค้าพิมพ์มาจริงในบทสนทนา
+  ห้ามเดาลิงก์จากชื่อแชทหรือชื่อกลุ่ม (เช่น กลุ่มชื่อ "K-Masters.com (Support)" ไม่ได้แปลว่าเว็บคือ K-Masters.com) ถ้าไม่มีให้เป็นค่าว่าง
 - ถ้ามี ticket ที่เปิดอยู่เป็นปัญหาเดียวกัน ให้ใส่ existing_ticket_id เป็นเลข ticket นั้นแทนการเปิดใหม่ (0 = เปิด ticket ใหม่)
 - ถ้าไม่ใช่การแจ้งปัญหา ให้ issue_category = "none" และช่อง issue อื่นเป็นค่าว่าง
 
@@ -377,10 +378,12 @@ async def analyze_chat(
     new_messages: list[Message],
     open_tickets: list[Ticket],
     rejected: list[str] | None = None,
+    chat_website: str = "",
 ) -> Analysis:
     transcript = format_transcript(chat_title, history, {m.id for m in new_messages})
     parts = [
         ("text", _open_tickets_text(open_tickets)),
+        *([("text", f"เว็บไซต์ของลูกค้าแชทนี้ (แอดมินตั้งไว้ เชื่อถือได้): {chat_website}")] if chat_website else []),
         *([("text", "ร่างคำตอบที่แอดมินปฏิเสธไปแล้ว ห้ามร่างเนื้อหาเดิมซ้ำ ถ้าไม่มีเรื่องใหม่จากลูกค้าให้ needs_reply=false:\n"
                      + "\n".join(f"- {r}" for r in rejected))] if rejected else []),
         ("text", "บทสนทนา:\n" + transcript),

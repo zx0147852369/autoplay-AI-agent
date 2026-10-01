@@ -15,7 +15,9 @@ from .telegram_service import STICKER_TEXT
 from .database import (
     Chat, Message, Reply, SessionLocal, Ticket, TicketAttachment, TicketEvent, get_settings, int_setting, utcnow,
 )
-from .site_checker import check_site
+from urllib.parse import urlparse
+
+from .site_checker import check_site, same_site
 
 log = logging.getLogger(__name__)
 
@@ -134,7 +136,7 @@ async def analyze(chat_id: int) -> str:
         try:
             result = await ai_service.analyze_chat(
                 settings, chat.title if chat else str(chat_id), history, new_messages, open_tickets,
-                rejected=[r for r, _ in rejected],
+                rejected=[r for r, _ in rejected], chat_website=chat.website_url if chat else "",
             )
         except ai_service.AIError as e:
             last_error[chat_id] = str(e)
@@ -239,9 +241,39 @@ def _save_draft(chat_id: int, result: ai_service.Analysis, new_messages: list[Me
         db.commit()
 
 
+def _host(url: str) -> str:
+    url = (url or "").strip()
+    return (urlparse(url if "://" in url else "https://" + url).hostname or "").lower()
+
+
+def pick_website(chat_website: str, ai_url: str, customer_msgs: list[Message], chat_text: str = "") -> str:
+    """เลือกลิงก์เว็บของ ticket: ลิงก์ที่ลูกค้าพิมพ์ (ถ้าอยู่ในเว็บเดียวกับที่แอดมินตั้งไว้) > เว็บประจำแชท > ลิงก์จาก AI
+
+    ลิงก์จาก AI ใช้ได้เฉพาะเมื่อโดเมนนั้นมีอยู่จริงในข้อความแชท (กัน AI เดาจากชื่อกลุ่ม)"""
+    ai_url = (ai_url or "").strip()
+    text = (chat_text or " ".join(m.text or "" for m in customer_msgs)).lower()
+    host = _host(ai_url)
+    if ai_url and (not host or host.removeprefix("www.") not in text):
+        log.info("ไม่ใช้ลิงก์ %s จาก AI เพราะไม่พบในข้อความแชท", ai_url)
+        ai_url = ""
+    found = ai_url or find_site_url(customer_msgs)
+    if not chat_website:
+        return found
+    if found:
+        host_a, host_b = _host(found), _host(chat_website)
+        if host_a and host_b and same_site(host_a, host_b):
+            return found  # ลิงก์เฉพาะหน้า (เช่น /login) ของเว็บเดียวกัน
+    return chat_website
+
+
 async def _save_ticket(chat_id: int, result: ai_service.Analysis, new_messages: list[Message], settings) -> int:
     customer_msgs = [m for m in new_messages if not m.is_outgoing]
     with SessionLocal() as db:
+        chat = db.get(Chat, chat_id)
+        chat_website = chat.website_url if chat else ""
+        # ข้อความในแชท (ไม่รวมชื่อกลุ่ม) ใช้ยืนยันว่าลิงก์จาก AI มีอยู่จริง
+        chat_text = " ".join(t or "" for t in db.scalars(select(Message.text).where(Message.chat_id == chat_id)
+                                        .order_by(Message.date.desc()).limit(300)))
         ticket = None
         created = False
         if result.existing_ticket_id:
@@ -256,7 +288,7 @@ async def _save_ticket(chat_id: int, result: ai_service.Analysis, new_messages: 
                 summary=result.issue_summary,
                 severity=result.severity,
                 customer_name=result.customer_name or (customer_msgs[0].sender_name if customer_msgs else ""),
-                website_url=result.website_url.strip() or find_site_url(customer_msgs),
+                website_url=pick_website(chat_website, result.website_url, customer_msgs, chat_text),
             )
             db.add(ticket)
             db.flush()
@@ -266,7 +298,7 @@ async def _save_ticket(chat_id: int, result: ai_service.Analysis, new_messages: 
             db.add(TicketEvent(ticket_id=ticket.id, kind="ai_summary", author="AI",
                                body="ข้อมูลเพิ่มเติม: " + result.issue_summary))
             if not ticket.website_url:
-                ticket.website_url = result.website_url.strip() or find_site_url(customer_msgs)
+                ticket.website_url = pick_website(chat_website, result.website_url, customer_msgs, chat_text)
             if ai_service.SEVERITIES.index(result.severity) > ai_service.SEVERITIES.index(ticket.severity):
                 ticket.severity = result.severity
 

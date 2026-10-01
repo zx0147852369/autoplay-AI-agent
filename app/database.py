@@ -89,6 +89,8 @@ class Chat(Base):
     title: Mapped[str] = mapped_column(String(256), default="")
     kind: Mapped[str] = mapped_column(String(16), default="group")  # group / channel / user
     monitored: Mapped[bool] = mapped_column(Boolean, default=False)
+    # เว็บไซต์ของลูกค้าแชทนี้ (แอดมินตั้งเอง) ใช้แทนการให้ AI เดา
+    website_url: Mapped[str] = mapped_column(String(1024), default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 

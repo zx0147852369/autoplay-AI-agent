@@ -500,7 +500,8 @@ async def chat_detail(request: Request, chat_id: int):
         ))[::-1]
     if not chat:
         return back("/chats")
-    return render(request, "chat_detail.html", user, chat=chat, messages=messages)
+    return render(request, "chat_detail.html", user, chat=chat, messages=messages,
+                  dev_group=chat_id == telegram.dev_group_id)
 
 
 # ---------------------------------------------------------------- replies (approval queue)
@@ -804,6 +805,70 @@ async def ticket_note(request: Request, ticket_id: int, body: str = Form(...)):
                 db.get(Ticket, ticket_id).updated_at = utcnow()
                 db.commit()
     return back(f"/tickets/{ticket_id}")
+
+
+def clean_website(value: str) -> str:
+    value = (value or "").strip()
+    if not value:
+        return ""
+    if " " in value or "." not in value or value.lower().startswith(("javascript:", "data:")):
+        raise ValueError("ลิงก์ไม่ถูกต้อง")
+    return value if value.lower().startswith(("http://", "https://")) else "https://" + value
+
+
+@app.post("/tickets/{ticket_id}/website")
+async def ticket_website(request: Request, ticket_id: int, website_url: str = Form(""), for_chat: str = Form("")):
+    """แอดมินแก้ลิงก์เว็บไซต์ของ ticket (และตั้งเป็นเว็บประจำแชทได้) แล้วตรวจเว็บใหม่"""
+    user = current_user(request, "programmer", "agent")
+    try:
+        url = clean_website(website_url)
+    except ValueError as e:
+        flash(request, str(e), "error")
+        return back(f"/tickets/{ticket_id}")
+    with SessionLocal() as db:
+        ticket = db.get(Ticket, ticket_id)
+        if not ticket:
+            return back("/tickets")
+        old = ticket.website_url
+        ticket.website_url = url
+        if not url:
+            ticket.site_check = ""
+        if for_chat:
+            chat = db.get(Chat, ticket.chat_id)
+            if chat:
+                chat.website_url = url
+        db.add(TicketEvent(ticket_id=ticket_id, kind="status", author=user.username,
+                           body=f"แก้ลิงก์เว็บไซต์: {old or '-'} → {url or '-'}"
+                                + (" (ตั้งเป็นเว็บประจำแชทนี้)" if for_chat else "")))
+        db.commit()
+    if url:
+        result = await analyzer.run_site_check(ticket_id)
+        if result and not result["ok"]:
+            flash(request, f"บันทึกลิงก์แล้ว แต่เว็บไซต์เข้าไม่ได้: {result['error']}", "error")
+        elif result and result.get("other_host"):
+            flash(request, f"บันทึกลิงก์แล้ว แต่เว็บถูกพาไปโดเมนอื่น ({result.get('final_host')})", "error")
+        else:
+            flash(request, "บันทึกลิงก์เว็บไซต์แล้ว เว็บเข้าได้ปกติ")
+    else:
+        flash(request, "ลบลิงก์เว็บไซต์ของ ticket แล้ว")
+    return back(f"/tickets/{ticket_id}")
+
+
+@app.post("/chats/{chat_id}/website")
+async def chat_website(request: Request, chat_id: int, website_url: str = Form("")):
+    current_user(request, "agent")
+    try:
+        url = clean_website(website_url)
+    except ValueError as e:
+        flash(request, str(e), "error")
+        return back(f"/chats/{chat_id}")
+    with SessionLocal() as db:
+        chat = db.get(Chat, chat_id)
+        if chat:
+            chat.website_url = url
+            db.commit()
+    flash(request, "บันทึกเว็บไซต์ประจำแชทแล้ว ticket ใหม่ของแชทนี้จะใช้ลิงก์นี้" if url else "ลบเว็บไซต์ประจำแชทแล้ว")
+    return back(f"/chats/{chat_id}")
 
 
 @app.post("/tickets/{ticket_id}/check-site")

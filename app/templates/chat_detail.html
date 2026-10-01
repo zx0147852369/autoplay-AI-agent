@@ -9,6 +9,17 @@
     <p class="sub">{{ messages | length }} ข้อความล่าสุด · {{ 'กำลังติดตาม' if chat.monitored else 'ไม่ได้ติดตาม' }}</p>
   </div>
 </div>
+{% if not dev_group %}
+<form method="post" action="/chats/{{ chat.id }}/website" class="card site-edit" style="margin-top:0">
+  <label class="field">เว็บไซต์ของลูกค้าแชทนี้
+    <span class="row" style="flex-wrap:nowrap">
+      <input name="website_url" value="{{ chat.website_url }}" placeholder="https://play.example.com" class="mono">
+      <button class="primary">บันทึก</button>
+    </span>
+    <span class="hint">ticket ทุกใบของแชทนี้จะใช้ลิงก์นี้ (ถ้าลูกค้าพิมพ์ลิงก์ของเว็บเดียวกันมา จะใช้ลิงก์ที่ลูกค้าพิมพ์) · ปล่อยว่าง = ให้ระบบหาจากข้อความลูกค้า</span>
+  </label>
+</form>
+{% endif %}
 <div class="card flush">
   <div class="chatlog full">
     {% for m in messages %}
