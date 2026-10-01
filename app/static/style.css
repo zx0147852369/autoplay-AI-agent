@@ -664,10 +664,10 @@ button.danger-solid:hover { background: #96200f; border-color: #96200f; }
 .md-foot > span:first-child { margin-right: auto; }
 .dropzone { border: 1.5px dashed var(--line-2); border-radius: 10px; padding: 10px; background: var(--surface-2); display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; transition: border-color .15s, background .15s; }
 .dropzone.over { border-color: var(--pine); background: var(--pine-tint); }
-.thumbs { display: contents; }
-.thumb { position: relative; width: 104px; height: 78px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); background: var(--surface); }
-.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.thumb.removed img { opacity: .3; filter: grayscale(1); }
+.up-thumbs { display: contents; }
+.up-thumb { position: relative; width: 104px; height: 78px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); background: var(--surface); }
+.up-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.up-thumb.removed img { opacity: .3; filter: grayscale(1); }
 .thumb-x { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%; border: 0; cursor: pointer;
   background: rgba(28, 27, 25, .72); color: #fff; font-size: 15px; line-height: 22px; padding: 0; display: grid; place-items: center; }
 .thumb-x:hover { background: var(--red); }
@@ -693,3 +693,44 @@ button.danger-solid:hover { background: #96200f; border-color: #96200f; }
 /* โลโก้แทนตัวอักษรในวงกลม (ผู้ใช้ / บัญชี Telegram) */
 img.avatar.logo { object-fit: cover; background: #fff; border: 1px solid var(--line); padding: 0; flex-shrink: 0; }
 
+/* ---------- หน้าแชท (แบบแอปแชท) ---------- */
+.chat-panel .panel-head { flex-wrap: wrap; gap: 8px 16px; }
+.chat-legend { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 0.82rem; color: var(--ink-2); }
+.chat-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 3px; }
+.lg-in { background: var(--surface); border: 1px solid var(--line-2); }
+.lg-out { background: #d9f5e7; border: 1px solid #a9e3c5; }
+.chatview {
+  display: flex; flex-direction: column; gap: 2px; padding: 16px 20px 20px; max-height: 72vh; overflow-y: auto;
+  background: #efece4 radial-gradient(rgba(28, 27, 25, .045) 1px, transparent 1px) 0 0 / 16px 16px;
+}
+.day-sep { display: flex; justify-content: center; margin: 14px 0 8px; position: sticky; top: 0; z-index: 1; }
+.day-sep span { font-size: 0.76rem; font-weight: 500; color: var(--ink-2); background: rgba(255, 255, 255, .92); border: 1px solid var(--line);
+  padding: 2px 12px; border-radius: 99px; box-shadow: 0 1px 2px rgba(0, 0, 0, .04); }
+.cm { display: flex; align-items: flex-end; gap: 8px; max-width: min(720px, 82%); }
+.cm.first { margin-top: 8px; }
+.cm.in { align-self: flex-start; }
+.cm.out { align-self: flex-end; flex-direction: row-reverse; }
+.cm-av, .cm-av-gap { width: 30px; height: 30px; flex-shrink: 0; }
+.cm-av { border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 600; font-size: 0.8rem; }
+.cm-bubble {
+  position: relative; min-width: 120px; padding: 6px 10px 5px; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 12px; box-shadow: 0 1px 1px rgba(0, 0, 0, .04); word-break: break-word;
+}
+.cm.in.last .cm-bubble { border-bottom-left-radius: 4px; }
+.cm.out .cm-bubble { background: #d9f5e7; border-color: #a9e3c5; }
+.cm.out.last .cm-bubble { border-bottom-right-radius: 4px; }
+.cm-name { font-size: 0.8rem; font-weight: 600; margin-bottom: 2px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cm.out .cm-name { color: var(--pine-2); }
+.cm-user { font-weight: 400; color: var(--muted); }
+.cm-badge { font-size: 0.68rem; font-weight: 500; padding: 0 6px; border-radius: 99px; background: rgba(11, 125, 82, .14); color: var(--pine-2); }
+.cm-text { white-space: pre-wrap; font-size: 0.93rem; line-height: 1.5; }
+.cm-text a { color: var(--blue); text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
+.cm-note { font-size: 0.84rem; font-style: italic; color: var(--muted); }
+.cm-photo img { display: block; max-width: min(320px, 100%); max-height: 320px; border-radius: 8px; margin: 2px 0 4px; }
+.cm-foot { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 2px; font-size: 0.7rem; color: var(--muted); }
+.cm-id { font-family: var(--mono); opacity: 0; transition: opacity .15s; }
+.cm-bubble:hover .cm-id { opacity: 1; }
+.cm-wait { color: var(--amber); font-weight: 500; }
+.cm-wait::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--amber); margin-right: 4px; vertical-align: 1px; }
+.cm-bubble.sticker { background: transparent; border-style: dashed; box-shadow: none; }
+@media (max-width: 640px) { .cm { max-width: 94%; } .chatview { padding: 12px; } }

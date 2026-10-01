@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import sys
 import time
 import uuid
@@ -14,6 +15,7 @@ from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup, escape
 from sqlalchemy import func, select
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -155,6 +157,61 @@ templates.env.filters["localtime"] = _localtime
 templates.env.filters["localtime_hm"] = lambda dt: dt.replace(tzinfo=timezone.utc).astimezone(DISPLAY_TZ).strftime("%H:%M") if dt else "-"
 templates.env.filters["isolocal"] = _iso_localtime
 templates.env.filters["fromjson"] = lambda s: json.loads(s) if s else None
+
+_URL_RE = re.compile(r"(https?://[^\s<>\"']+)")
+
+
+def _linkify(text: str) -> Markup:
+    """ข้อความธรรมดา -> HTML ที่ escape แล้ว และทำลิงก์ให้กดได้"""
+    parts = _URL_RE.split(text or "")
+    out = []
+    for i, part in enumerate(parts):
+        if i % 2:
+            url = part.rstrip(".,;)")
+            tail = part[len(url):]
+            out.append(Markup('<a href="{0}" target="_blank" rel="noopener noreferrer">{0}</a>').format(url) + escape(tail))
+        else:
+            out.append(escape(part))
+    return Markup("").join(out)
+
+
+templates.env.filters["linkify"] = _linkify
+
+TH_DAYS = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"]
+TH_MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."]
+NAME_COLORS = ["#0b7d52", "#1d4ed8", "#a15c07", "#9d174d", "#6d28d9", "#0e7490", "#b42318", "#4d7c0f"]
+_SENDER_RE = re.compile(r"^(.*?)\s*\(@([\w\d_]+)\)\s*$")
+
+
+def build_chat_view(messages: list[Message]) -> list[dict]:
+    """จัดข้อความเป็นแบบแอปแชท: คั่นวัน, รวมข้อความติดกันของคนเดียวกัน, สีชื่อคงที่ต่อคน"""
+    today = datetime.now(DISPLAY_TZ).date()
+    items, prev = [], None
+    for m in messages:
+        local = m.date.replace(tzinfo=timezone.utc).astimezone(DISPLAY_TZ)
+        day = local.date()
+        match = _SENDER_RE.match(m.sender_name or "")
+        name, username = (match.group(1), match.group(2)) if match else ((m.sender_name or "").strip(), "")
+        name = name or (username and "@" + username) or ("ทีมงาน" if m.is_outgoing else "ลูกค้า")
+        key = (m.is_outgoing, m.sender_name)
+        new_day = prev is None or prev["day"] != day
+        first = new_day or prev["key"] != key or (local - prev["local"]).total_seconds() > 300
+        if new_day:
+            label = "วันนี้" if day == today else "เมื่อวาน" if (today - day).days == 1 else \
+                f"{TH_DAYS[day.weekday()]} {day.day} {TH_MONTHS[day.month - 1]} {day.year}"
+        text = (m.text or "").strip()
+        items.append({
+            "m": m, "day": day, "day_label": label if new_day else "", "local": local, "key": key, "first": first,
+            "name": name, "username": username, "initial": (name.lstrip("@") or "?")[:1].upper(),
+            "color": NAME_COLORS[sum(map(ord, m.sender_name or name)) % len(NAME_COLORS)],
+            "sticker": text == "(สติกเกอร์)", "text": text,
+        })
+        if prev is not None and first:
+            prev["last"] = True
+        prev = items[-1]
+    if prev is not None:
+        prev["last"] = True
+    return items
 templates.env.globals.update(
     CATEGORIES=ai_service.CATEGORIES, TICKET_STATUSES=TICKET_STATUSES, SEVERITY_LABELS=SEVERITY_LABELS,
     REPLY_STATUSES=REPLY_STATUSES, ROLES=ROLES, ENV_ADMIN=ADMIN_USERNAME, EPHEMERAL_STORAGE=EPHEMERAL_STORAGE,
@@ -505,12 +562,17 @@ async def chat_detail(request: Request, chat_id: int):
     with SessionLocal() as db:
         chat = db.get(Chat, chat_id)
         messages = list(db.scalars(
-            select(Message).where(Message.chat_id == chat_id).order_by(Message.date.desc()).limit(200)
+            select(Message).where(Message.chat_id == chat_id)
+            .order_by(Message.date.desc(), Message.tg_message_id.desc()).limit(200)
         ))[::-1]
     if not chat:
         return back("/chats")
-    return render(request, "chat_detail.html", user, chat=chat, messages=messages,
-                  dev_group=chat_id == telegram.dev_group_id)
+    view = build_chat_view(messages)
+    customers = {i["key"] for i in view if not i["m"].is_outgoing}
+    return render(request, "chat_detail.html", user, chat=chat, messages=messages, view=view,
+                  dev_group=chat_id == telegram.dev_group_id,
+                  waiting=sum(1 for i in view if not i["m"].is_outgoing and not i["m"].analyzed),
+                  people=len(customers))
 
 
 # ---------------------------------------------------------------- replies (approval queue)
@@ -533,7 +595,7 @@ async def replies_page(request: Request, status: str = "pending", box: str = "")
             if r.status == "pending":
                 context[r.id] = list(db.scalars(
                     select(Message).where(Message.chat_id == r.chat_id)
-                    .order_by(Message.date.desc()).limit(8)
+                    .order_by(Message.date.desc(), Message.tg_message_id.desc()).limit(8)
                 ))[::-1]
     status_counts["all"] = sum(status_counts.values())
     status_counts["pending"] = status_counts.get("pending", 0) + len(dev_queue)
@@ -625,7 +687,7 @@ async def replies_regenerate(request: Request, reply_id: int, instruction: str =
         settings = get_settings(db)
         chat = db.get(Chat, reply.chat_id)
         history = list(db.scalars(
-            select(Message).where(Message.chat_id == reply.chat_id).order_by(Message.date.desc()).limit(20)
+            select(Message).where(Message.chat_id == reply.chat_id).order_by(Message.date.desc(), Message.tg_message_id.desc()).limit(20)
         ))[::-1]
     try:
         new_text = await ai_service.rewrite_reply(

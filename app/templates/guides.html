@@ -118,7 +118,7 @@
       <div class="field">
         <span>รูปประกอบ <span class="hint">ไม่บังคับ · สูงสุด {{ max_images }} รูป · JPG PNG GIF WEBP ไม่เกิน 8 MB · ส่งให้ลูกค้าพร้อมคำตอบ (ยังต้องอนุมัติก่อน)</span></span>
         <div class="dropzone" id="gdDrop">
-          <div class="thumbs" id="gdThumbs"></div>
+          <div class="up-thumbs" id="gdThumbs"></div>
           <label class="drop-add" id="gdAdd">
             {{ cicon('add-circle', 24) }}
             <span><strong>เลือกรูป</strong> หรือลากรูปมาวาง · กด Ctrl+V เพื่อวางภาพหน้าจอ</span>
@@ -152,7 +152,7 @@
 
   function thumb(src, label, onToggle, isRemoved) {
     const el = document.createElement('div');
-    el.className = 'thumb' + (isRemoved ? ' removed' : '');
+    el.className = 'up-thumb' + (isRemoved ? ' removed' : '');
     const img = document.createElement('img'); img.src = src; img.alt = '';
     const btn = document.createElement('button');
     btn.type = 'button'; btn.className = 'thumb-x';
