@@ -487,6 +487,10 @@ async def replies_approve(request: Request, reply_id: int, text: str = Form(...)
     with SessionLocal() as db:
         reply = db.get(Reply, reply_id)
         reply.status, reply.error = status, error
+        if status == "sent" and reply.ticket_id and db.get(Ticket, reply.ticket_id):
+            label = "แจ้งลูกค้าว่าแก้ไขเรียบร้อยแล้ว" if reply.kind == "resolved" else "ตอบลูกค้า"
+            db.add(TicketEvent(ticket_id=reply.ticket_id, kind="status", author=user.username,
+                               body=f"{label}: {text}"))
         db.commit()
     return back("/replies")
 
@@ -583,6 +587,7 @@ async def ticket_update(request: Request, ticket_id: int, status: str = Form(...
         ticket = db.get(Ticket, ticket_id)
         if ticket:
             changes = []
+            old_status = ticket.status
             if status in TICKET_STATUSES and status != ticket.status:
                 changes.append(f"สถานะ: {TICKET_STATUSES[ticket.status]} → {TICKET_STATUSES[status]}")
                 ticket.status = status
@@ -599,7 +604,50 @@ async def ticket_update(request: Request, ticket_id: int, status: str = Form(...
                 db.add(TicketEvent(ticket_id=ticket_id, kind="status", author=user.username, body="\n".join(changes)))
             db.commit()
             flash(request, "บันทึก ticket แล้ว")
+            notice = sync_resolved_notice(db, ticket, user.username) if ticket.status != old_status else ""
+            if notice == "created":
+                flash(request, "ร่างข้อความแจ้งลูกค้าว่าแก้ไขเรียบร้อยแล้ว รออนุมัติที่หน้า \"รออนุมัติ\"")
+            elif notice == "cancelled":
+                flash(request, "ยกเลิกข้อความแจ้งลูกค้าที่ยังไม่ได้ส่ง เพราะ ticket ยังไม่ได้แก้ไขเสร็จ")
     return back(f"/tickets/{ticket_id}")
+
+
+def resolved_message(settings: dict[str, str], ticket: Ticket) -> str:
+    customer = (ticket.customer_name or "").split(" (@")[0].strip() or "ลูกค้า"
+    template = settings.get("resolved_message") or DEFAULT_SETTINGS["resolved_message"]
+    try:
+        return template.format(customer=customer, title=ticket.title, ticket_id=ticket.id)
+    except (KeyError, IndexError, ValueError):
+        return template  # รูปแบบข้อความผิด ใช้ข้อความตามที่พิมพ์ไว้
+
+
+def sync_resolved_notice(db, ticket: Ticket, username: str) -> str:
+    """เรียกเมื่อสถานะ ticket เปลี่ยน: เปลี่ยนเป็น "แก้ไขแล้ว" -> ร่างข้อความแจ้งลูกค้า (รออนุมัติ)
+    เปลี่ยนกลับเป็นยังไม่เสร็จ -> ยกเลิกข้อความที่ยังไม่ได้ส่ง"""
+    pending = list(db.scalars(select(Reply).where(
+        Reply.ticket_id == ticket.id, Reply.kind == "resolved", Reply.status.in_(("pending", "failed")))))
+    if ticket.status in ("open", "in_progress"):
+        for r in pending:
+            r.status = "superseded"
+        db.commit()
+        return "cancelled" if pending else ""
+    if ticket.status != "resolved" or pending:
+        return ""
+    settings = get_settings(db)
+    if settings.get("notify_resolved") != "1":
+        return ""
+    already_sent = db.scalar(select(func.count(Reply.id)).where(
+        Reply.ticket_id == ticket.id, Reply.kind == "resolved", Reply.status == "sent"))
+    if already_sent:
+        return ""
+    # ตอบกลับข้อความที่ลูกค้าแจ้งปัญหาไว้ (ดูจากคำตอบก่อนหน้าของ ticket นี้)
+    reply_to = db.scalar(select(Reply.reply_to_tg_id).where(
+        Reply.ticket_id == ticket.id, Reply.reply_to_tg_id.is_not(None)).order_by(Reply.created_at).limit(1))
+    text = resolved_message(settings, ticket)
+    db.add(Reply(chat_id=ticket.chat_id, reply_to_tg_id=reply_to, ai_text=text, final_text=text, kind="resolved",
+                 ticket_id=ticket.id, note=f"แจ้งลูกค้าว่า ticket #{ticket.id} แก้ไขเรียบร้อยแล้ว (โดย {username})"))
+    db.commit()
+    return "created"
 
 
 @app.post("/tickets/{ticket_id}/note")
@@ -653,7 +701,7 @@ async def settings_save(request: Request):
     form = await request.form()
     with SessionLocal() as db:
         for key in DEFAULT_SETTINGS:
-            if key in ("auto_draft", "auto_ticket", "site_check"):
+            if key in ("auto_draft", "auto_ticket", "site_check", "notify_resolved"):
                 value = "1" if form.get(key) else "0"
             elif key == "ai_model":
                 value = str(form.get(key, ""))

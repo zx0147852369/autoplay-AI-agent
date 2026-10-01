@@ -106,7 +106,8 @@ def _save_draft(chat_id: int, result: ai_service.Analysis, new_messages: list[Me
         reply_to = max(valid_ids)
     with SessionLocal() as db:
         # ร่างเก่าที่ยังไม่อนุมัติของแชทนี้ล้าสมัยแล้ว เพราะมีข้อความใหม่เข้ามา
-        for old in db.scalars(select(Reply).where(Reply.chat_id == chat_id, Reply.status == "pending")):
+        for old in db.scalars(select(Reply).where(
+                Reply.chat_id == chat_id, Reply.status == "pending", Reply.kind == "ai")):
             old.status = "superseded"
         db.add(Reply(
             chat_id=chat_id,

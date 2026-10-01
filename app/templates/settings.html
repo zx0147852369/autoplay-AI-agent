@@ -32,6 +32,14 @@
         <span>ตรวจเว็บไซต์ที่ลูกค้าแจ้ง<span class="hint">เช็กว่าเข้าได้ไหม และใช้เวลาโหลดเท่าไร</span></span></label>
     </section>
     <section class="card">
+      <div class="card-head"><h2>แจ้งลูกค้าเมื่อแก้ไขเสร็จ</h2></div>
+      <label class="check-row"><input type="checkbox" name="notify_resolved" {{ 'checked' if settings.notify_resolved == '1' }}>
+        <span>ร่างข้อความแจ้งลูกค้าเมื่อ ticket เปลี่ยนเป็น "แก้ไขแล้ว"<span class="hint">ข้อความจะเข้าคิวรออนุมัติก่อนส่งเสมอ</span></span></label>
+      <label class="field" style="margin-top:10px">ข้อความที่จะส่ง
+        <textarea name="resolved_message" rows="4">{{ settings.resolved_message }}</textarea>
+        <span class="hint">ใส่ <code>{customer}</code> = ชื่อลูกค้า, <code>{title}</code> = หัวข้อปัญหา, <code>{ticket_id}</code> = เลข ticket</span></label>
+    </section>
+    <section class="card">
       <div class="card-head"><h2>โมเดลและเวลา</h2></div>
       <div class="stack">
         <label class="field">โมเดล AI

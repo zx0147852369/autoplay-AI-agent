@@ -9,7 +9,9 @@ from sqlalchemy import (
     String,
     Text,
     create_engine,
+    inspect,
     select,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
@@ -153,6 +155,8 @@ class Reply(Base):
     ai_text: Mapped[str] = mapped_column(Text, default="")
     final_text: Mapped[str] = mapped_column(Text, default="")
     note: Mapped[str] = mapped_column(Text, default="")  # เหตุผล/บันทึกจาก AI ถึงแอดมิน
+    # ai = ร่างคำตอบจาก AI, resolved = แจ้งลูกค้าว่าแก้ไขปัญหาเรียบร้อยแล้ว
+    kind: Mapped[str] = mapped_column(String(16), default="ai", server_default="ai")
     # pending / sending / sent / rejected / failed / superseded
     status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
     ticket_id: Mapped[int | None] = mapped_column(ForeignKey("tickets.id"), nullable=True)
@@ -181,11 +185,34 @@ DEFAULT_SETTINGS = {
     "auto_draft": "1",
     "auto_ticket": "1",
     "site_check": "1",
+    "notify_resolved": "1",
+    "resolved_message": (
+        "สวัสดีค่ะ คุณ{customer} ปัญหา \"{title}\" ที่แจ้งไว้ ทีมงานได้แก้ไขเรียบร้อยแล้วค่ะ "
+        "รบกวนลองใช้งานอีกครั้ง หากยังพบปัญหาแจ้งทีมงานได้เลยนะคะ ขอบคุณค่ะ"
+    ),
 }
+
+
+def _add_missing_columns() -> None:
+    """ฐานข้อมูลเก่า (อยู่ใน Volume) จะไม่มีคอลัมน์ที่เพิ่มทีหลัง -> เพิ่มให้อัตโนมัติ"""
+    inspector = inspect(engine)
+    with engine.begin() as conn:
+        for table in Base.metadata.sorted_tables:
+            if not inspector.has_table(table.name):
+                continue
+            existing = {c["name"] for c in inspector.get_columns(table.name)}
+            for column in table.columns:
+                if column.name in existing:
+                    continue
+                ddl = f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {column.type.compile(engine.dialect)}'
+                if column.server_default is not None:
+                    ddl += f" DEFAULT '{column.server_default.arg}'"
+                conn.execute(text(ddl))
 
 
 def init_db() -> None:
     Base.metadata.create_all(engine)
+    _add_missing_columns()
     with SessionLocal() as db:
         for key, value in DEFAULT_SETTINGS.items():
             if db.get(Setting, key) is None:

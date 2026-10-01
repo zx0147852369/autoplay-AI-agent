@@ -93,13 +93,16 @@
         </label>
         <label class="field">ลิงก์เว็บไซต์ <input name="website_url" value="{{ ticket.website_url }}" placeholder="https://"></label>
         <button class="primary block">บันทึก</button>
+        <p class="hint" style="margin:0">เมื่อเปลี่ยนสถานะเป็น "แก้ไขแล้ว" ระบบจะร่างข้อความแจ้งลูกค้าว่าแก้ไขเรียบร้อย ให้อนุมัติก่อนส่ง</p>
       </form>
     </section>
     {% if replies %}
     <section class="card">
       <div class="card-head"><h2>ข้อความที่ตอบลูกค้า</h2></div>
       {% for r in replies %}
-        <div class="mini-reply"><span class="tag rs-{{ r.status }}">{{ REPLY_STATUSES.get(r.status, r.status) }}</span><br>{{ r.final_text }}</div>
+        <div class="mini-reply"><span class="tag rs-{{ r.status }}">{{ REPLY_STATUSES.get(r.status, r.status) }}</span>
+          {% if r.kind == 'resolved' %}<span class="tag st-resolved">แจ้งแก้ไขเสร็จ</span>{% endif %}
+          {% if r.status == 'pending' %}<a class="small" href="/replies">ไปอนุมัติ →</a>{% endif %}<br>{{ r.final_text }}</div>
       {% endfor %}
     </section>
     {% endif %}
