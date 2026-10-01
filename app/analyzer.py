@@ -30,6 +30,11 @@ RETRY_AFTER_ERROR = 5 * 60   # ถ้า AI ผิดพลาด รอ 5 น�
 ASK_LINK = "รบกวนขอลิงก์เว็บไซต์ที่พบปัญหาด้วยนะคะ"
 ASK_LINK_FULL = "รับเรื่องแล้วค่ะ " + ASK_LINK
 LINK_REQUEST_RE = re.compile(r"ลิงก์|ลิงค์|ลิ้งค์|ลิ้งก์|link|url", re.IGNORECASE)
+# ทีมงานขอข้อมูลจากลูกค้า -> เมื่อลูกค้าส่งข้อมูลมา ให้ตอบรับ
+INFO_REQUEST_RE = re.compile(
+    r"(ขอ|รบกวน|แจ้ง|ส่ง|แนบ).{0,30}(ลิงก์|ลิงค์|ลิ้งค์|ลิ้งก์|link|url|เว็บ|ยูส|user|ไอดี|สลิป|รูป|ภาพ|หน้าจอ|ข้อมูล|เบอร์|ชื่อบัญชี|เลขบัญชี)",
+    re.IGNORECASE)
+ACK_INFO = "ได้รับข้อมูลแล้วค่ะ ทีมงานกำลังตรวจสอบให้นะคะ รอสักครู่นะคะ"
 URL_RE = re.compile(r"https?://[^\s<>\"')]+", re.IGNORECASE)
 # ลิงก์รูปภาพ / โซเชียล ไม่ใช่เว็บไซต์ของลูกค้า
 NOT_SITE_HOSTS = ("imgur.com", "pic.in.th", "ibb.co", "postimg", "prnt.sc", "gyazo", "t.me", "telegram.",
@@ -120,6 +125,7 @@ async def analyze(chat_id: int) -> str:
             open_tickets = list(db.scalars(
                 select(Ticket).where(Ticket.chat_id == chat_id, Ticket.status.in_(OPEN_STATUSES))
             ))
+            asked_info = team_asked_info(db, chat_id, new_messages)
 
         if str(chat_id) == settings.get("dev_group_id"):
             _mark_analyzed(new_messages)  # กลุ่มโปรแกรมเมอร์ไม่ใช่แชทลูกค้า
@@ -155,11 +161,17 @@ async def analyze(chat_id: int) -> str:
             else:
                 result.needs_reply, result.reply_text = True, ASK_LINK_FULL
             result.note_for_admin = (result.note_for_admin + " · ระบบขอลิงก์เว็บไซต์จากลูกค้า").strip(" ·")
+        ack = asked_info and settings.get("ack_info") == "1" and has_content(customer_new)
+        if ack:
+            await _apply_customer_link(chat_id, customer_new, open_tickets, settings)
+            if not (result.needs_reply and result.reply_text.strip()):
+                result.needs_reply, result.reply_text = True, ACK_INFO
+                result.note_for_admin = (result.note_for_admin + " · ลูกค้าส่งข้อมูลที่ขอไปแล้ว ระบบร่างคำตอบรับ").strip(" ·")
         similar = next((text for text, _ in rejected if is_similar(result.reply_text, text)), None)
         if result.needs_reply and similar:
             log.info("ไม่สร้างร่างซ้ำกับที่แอดมินปฏิเสธไปแล้วในแชท %s", chat_id)
             result.needs_reply = False
-        if result.needs_reply and result.reply_text.strip() and (settings.get("auto_draft") == "1" or ask_link):
+        if result.needs_reply and result.reply_text.strip() and (settings.get("auto_draft") == "1" or ask_link or ack):
             _save_draft(chat_id, result, new_messages, ticket_id)
         _mark_analyzed(new_messages)
 
@@ -169,6 +181,54 @@ async def analyze(chat_id: int) -> str:
         if result.needs_reply:
             parts.append("สร้างร่างคำตอบแล้ว")
         return ", ".join(parts) or "ไม่ต้องตอบ / ไม่ใช่การแจ้งปัญหา"
+
+
+def team_asked_info(db, chat_id: int, new_messages: list[Message]) -> bool:
+    """ข้อความล่าสุดของทีมงาน (ก่อนข้อความใหม่ของลูกค้า) เป็นการขอข้อมูลจากลูกค้าหรือไม่"""
+    customer_new = [m for m in new_messages if not m.is_outgoing]
+    if not customer_new:
+        return False
+    first = customer_new[0]
+    last_team = db.scalar(select(Message.text).where(
+        Message.chat_id == chat_id, Message.is_outgoing.is_(True),
+        (Message.date < first.date) | ((Message.date == first.date) & (Message.id < first.id)),
+    ).order_by(Message.date.desc(), Message.id.desc()).limit(1))
+    if last_team is None:
+        # ข้อความที่ส่งผ่านระบบแต่ Telegram ยังไม่ส่งกลับมาเก็บ ใช้ข้อความที่อนุมัติส่งล่าสุดแทน
+        last_team = db.scalar(select(Reply.final_text).where(
+            Reply.chat_id == chat_id, Reply.status == "sent", Reply.decided_at <= first.date,
+        ).order_by(Reply.decided_at.desc()).limit(1))
+    return bool(last_team and INFO_REQUEST_RE.search(last_team))
+
+
+def has_content(messages: list[Message]) -> bool:
+    """ลูกค้าส่งข้อมูลจริง (ข้อความ / รูป) ไม่ใช่แค่สติกเกอร์หรือคำขอบคุณสั้นๆ"""
+    for m in messages:
+        text = (m.text or "").strip()
+        if m.media_path or URL_RE.search(text):
+            return True
+        if text and text != STICKER_TEXT and not re.fullmatch(r"(ok|โอเค|ครับ|ค่ะ|คะ|จ้า|ขอบคุณ\S*|thank\S*|👍|🙏)[\s!.]*", text, re.I):
+            return True
+    return False
+
+
+async def _apply_customer_link(chat_id: int, customer_msgs: list[Message], open_tickets: list[Ticket], settings) -> None:
+    """ลูกค้าส่งลิงก์มาตามที่ขอ -> ใส่ให้ ticket ที่ยังไม่มีลิงก์ แล้วตรวจเว็บ"""
+    url = find_site_url(customer_msgs)
+    if not url:
+        return
+    targets = [t.id for t in open_tickets if not t.website_url]
+    for ticket_id in targets:
+        with SessionLocal() as db:
+            ticket = db.get(Ticket, ticket_id)
+            if not ticket or ticket.website_url:
+                continue
+            ticket.website_url = url
+            db.add(TicketEvent(ticket_id=ticket_id, kind="status", author="AI",
+                               body=f"ลูกค้าส่งลิงก์เว็บไซต์มา: {url}"))
+            db.commit()
+        if settings.get("site_check") == "1":
+            await run_site_check(ticket_id)
 
 
 REJECT_MEMORY_HOURS = 24

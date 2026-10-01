@@ -232,6 +232,7 @@ DEFAULT_SETTINGS = {
     "auto_ticket": "1",
     "site_check": "1",
     "ask_link": "1",
+    "ack_info": "1",  # ตอบรับเมื่อลูกค้าส่งข้อมูลที่ทีมงานขอ (ลิงก์ ยูส สลิป)
     "notify_resolved": "1",
     "resolved_message": (
         "สวัสดีค่ะ คุณ{customer} ปัญหา \"{title}\" ที่แจ้งไว้ ทีมงานได้แก้ไขเรียบร้อยแล้วค่ะ "
