@@ -517,6 +517,7 @@ a.strip-cell:hover .cicon { transform: translateY(-2px) scale(1.08); }
 .ai-cell { display: flex; align-items: center; gap: 6px; }
 .icon-btn.sm { width: 26px; height: 26px; border: 1px solid var(--line-2); background: var(--surface); }
 .icon-btn.del:hover { color: var(--red); border-color: #e3b1ab; background: var(--red-tint); }
+.icon-btn.del:hover .cicon, button.danger:hover .cicon { transform: translateY(-1px) scale(1.1); }
 .bulk-bar { display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: var(--red-tint); border-bottom: 1px solid #f1c5bf; font-size: 0.88rem; }
 .bulk-bar[hidden] { display: none; }
 .bulk-bar span { margin-right: auto; }

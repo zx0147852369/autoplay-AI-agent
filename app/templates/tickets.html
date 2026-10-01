@@ -55,7 +55,7 @@
   <form method="post" action="/tickets/delete" id="bulkForm" class="bulk-bar" hidden
         onsubmit="return confirm('ลบ ticket ที่เลือก ' + document.querySelectorAll('.pick:checked').length + ' รายการ? ลบแล้วกู้คืนไม่ได้')">
     <span><b id="pickCount">0</b> รายการที่เลือก</span>
-    <button class="danger sm">{{ icon('trash', 13) }} ลบที่เลือก</button>
+    <button class="danger sm">{{ cicon('delete', 15) }} ลบที่เลือก</button>
     <button type="button" class="ghost sm" onclick="pickAll(false)">ยกเลิก</button>
   </form>
   {% endif %}
@@ -85,7 +85,7 @@
         {% if can_delete %}
         <td class="shrink" onclick="event.stopPropagation()">
           <form method="post" action="/tickets/{{ t.id }}/delete" onsubmit="return confirm({{ ('ลบ ticket #' ~ t.id ~ ' ' ~ t.title ~ '? ลบแล้วกู้คืนไม่ได้') | tojson | forceescape }})">
-            <button class="icon-btn sm del" title="ลบ ticket" aria-label="ลบ ticket #{{ t.id }}">{{ icon('trash', 14) }}</button>
+            <button class="icon-btn sm del" title="ลบ ticket" aria-label="ลบ ticket #{{ t.id }}">{{ cicon('delete', 17) }}</button>
           </form>
         </td>
         {% endif %}

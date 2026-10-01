@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_icons.html" import icon %}
+{% from "_icons.html" import icon, cicon %}
 {% block title %}Ticket #{{ ticket.id }}{% endblock %}
 {% block content %}
 <a class="crumb" href="/tickets">{{ icon('arrow-left', 14) }} Tickets</a>
@@ -131,7 +131,7 @@
       {% if user.role == 'admin' %}
       <form method="post" action="/tickets/{{ ticket.id }}/delete" class="delete-zone"
             onsubmit="return confirm({{ ('ลบ ticket #' ~ ticket.id ~ ' ' ~ ticket.title ~ '? ประวัติและรูปแนบของ ticket นี้จะถูกลบ กู้คืนไม่ได้') | tojson | forceescape }})">
-        <button class="danger sm block">{{ icon('trash', 13) }} ลบ ticket นี้</button>
+        <button class="danger sm block">{{ cicon('delete', 15) }} ลบ ticket นี้</button>
       </form>
       {% endif %}
     </section>
