@@ -3,85 +3,66 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}หลังบ้าน{% endblock %} · AI Support</title>
-  <script>
-    try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
-  </script>
+  <title>{% block title %}หลังบ้าน{% endblock %} · Support Desk</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=3">
+  <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=6">
 </head>
-<body class="{{ 'is-auth' if not user }}">
-<div class="backdrop" aria-hidden="true">
-  <span class="orb orb-1"></span><span class="orb orb-2"></span><span class="orb orb-3"></span>
-  <span class="grid-overlay"></span>
-</div>
-
+<body>
 {% if user %}
-{% set nav = [] %}
-{% if user.role in ('admin', 'agent') %}
-  {% set _ = nav.append(('/', 'home', 'ภาพรวม', '')) %}
-  {% set _ = nav.append(('/replies', 'inbox', 'รออนุมัติ', 'badge-pending')) %}
-{% endif %}
-{% set _ = nav.append(('/tickets', 'ticket', 'Tickets', 'badge-tickets')) %}
-{% if user.role in ('admin', 'agent') %}
-  {% set _ = nav.append(('/chats', 'chat', 'แชทลูกค้า', '')) %}
-{% endif %}
-{% if user.role == 'admin' %}
-  {% set _ = nav.append(('/telegram', 'send', 'บัญชี Telegram', '')) %}
-  {% set _ = nav.append(('/settings', 'sliders', 'ตั้งค่า', '')) %}
-{% endif %}
-
-<aside class="sidebar glass" id="sidebar">
+{% macro nav_item(href, ic, label, badge='') -%}
+  {% set active = (path == '/' and href == '/') or (href != '/' and path.startswith(href)) %}
+  <a href="{{ href }}" class="nav-item {{ 'active' if active }}">{{ icon(ic, 17) }}<span>{{ label }}</span>
+    {%- if badge %}<span class="nav-badge {{ 'hot' if badge == 'badge-pending' }}" id="{{ badge }}"></span>{% endif %}</a>
+{%- endmacro %}
+<aside class="sidebar" id="sidebar">
   <a class="brand" href="/">
-    <span class="brand-mark">{{ icon('bot', 22) }}</span>
-    <span class="brand-text"><strong>AI Support</strong><small>Telegram Agent</small></span>
+    <span class="brand-mark">S</span>
+    <span class="brand-text"><strong>Support Desk</strong><small>ทีมดูแลลูกค้า</small></span>
   </a>
   <nav class="nav">
-    {% for href, ic, label, badge in nav %}
-      {% set active = (path == '/' and href == '/') or (href != '/' and path.startswith(href)) %}
-      <a href="{{ href }}" class="nav-item {{ 'active' if active }}">
-        {{ icon(ic) }}<span>{{ label }}</span>
-        {% if badge %}<span class="nav-badge {{ 'hot' if badge == 'badge-pending' }}" id="{{ badge }}"></span>{% endif %}
-      </a>
-    {% endfor %}
+    {% if user.role in ('admin', 'agent') %}
+      {{ nav_item('/', 'home', 'ภาพรวม') }}
+      {{ nav_item('/replies', 'inbox', 'รออนุมัติ', 'badge-pending') }}
+    {% endif %}
+    {{ nav_item('/tickets', 'ticket', 'Tickets', 'badge-tickets') }}
+    {% if user.role in ('admin', 'agent') %}
+      {{ nav_item('/chats', 'chat', 'แชทลูกค้า') }}
+    {% endif %}
+    {% if user.role == 'admin' %}
+      <div class="nav-label">ระบบ</div>
+      {{ nav_item('/telegram', 'send', 'บัญชี Telegram') }}
+      {{ nav_item('/settings', 'sliders', 'ตั้งค่า') }}
+    {% endif %}
   </nav>
   <div class="sidebar-foot">
-    <button type="button" class="theme-toggle" id="themeToggle" title="สลับโหมดสว่าง/มืด">
-      <span class="t-dark">{{ icon('moon', 16) }} โหมดมืด</span><span class="t-light">{{ icon('sun', 16) }} โหมดสว่าง</span>
-    </button>
     <a class="user-chip" href="/account">
       <span class="avatar">{{ user.username[:1] | upper }}</span>
       <span class="user-meta"><strong>{{ user.username }}</strong><small>{{ ROLES[user.role] }}</small></span>
     </a>
-    <form method="post" action="/logout">
-      <button class="btn ghost block">{{ icon('logout', 16) }} ออกจากระบบ</button>
-    </form>
+    <form method="post" action="/logout"><button class="icon-btn" title="ออกจากระบบ" aria-label="ออกจากระบบ">{{ icon('logout', 17) }}</button></form>
   </div>
 </aside>
 <div class="scrim" id="scrim"></div>
 
 <div class="shell">
-  <header class="mobilebar glass">
+  <header class="mobilebar">
     <button type="button" class="icon-btn" id="menuBtn" aria-label="เมนู">{{ icon('menu', 20) }}</button>
-    <a class="brand small" href="/"><span class="brand-mark">{{ icon('bot', 18) }}</span><strong>AI Support</strong></a>
-    <a class="avatar sm" href="/account">{{ user.username[:1] | upper }}</a>
+    <a class="brand" href="/"><span class="brand-mark">S</span><span class="brand-text"><strong>Support Desk</strong></span></a>
   </header>
   <main class="content">
     {% block content %}{% endblock %}
   </main>
 </div>
 {% else %}
-<main class="auth-wrap">
   {% block auth %}{% endblock %}
-</main>
 {% endif %}
 
-<div class="toasts" id="toasts">
+<div class="toasts">
   {% for f in flashes %}
     <div class="toast {{ f.kind }}" role="status">
-      <span class="toast-ic">{{ icon('check' if f.kind == 'ok' else 'alert', 16) }}</span>
+      <span class="toast-ic">{{ icon('check' if f.kind == 'ok' else 'alert', 15) }}</span>
       <span class="toast-msg">{{ f.message }}</span>
       <button type="button" class="toast-x" aria-label="ปิด">{{ icon('x', 14) }}</button>
     </div>
@@ -89,25 +70,15 @@
 </div>
 
 <script>
-  // toast: ปิดเองอัตโนมัติ (ข้อความสำเร็จ) หรือกดปิด
   document.querySelectorAll('.toast').forEach(t => {
-    const close = () => { t.classList.add('leaving'); setTimeout(() => t.remove(), 300); };
+    const close = () => { t.classList.add('leaving'); setTimeout(() => t.remove(), 200); };
     t.querySelector('.toast-x').onclick = close;
-    if (t.classList.contains('ok')) setTimeout(close, 4500);
+    if (t.classList.contains('ok')) setTimeout(close, 4000);
   });
-  // theme
-  const themeBtn = document.getElementById('themeToggle');
-  if (themeBtn) themeBtn.onclick = () => {
-    const root = document.documentElement;
-    const current = root.dataset.theme || 'light';
-    root.dataset.theme = current === 'light' ? 'dark' : 'light';
-    try { localStorage.setItem('theme', root.dataset.theme); } catch (e) {}
-  };
-  // เมนูมือถือ
-  const sb = document.getElementById('sidebar'), scrim = document.getElementById('scrim'), mb = document.getElementById('menuBtn');
-  if (mb) {
-    mb.onclick = () => document.body.classList.add('menu-open');
-    scrim.onclick = () => document.body.classList.remove('menu-open');
+  const menuBtn = document.getElementById('menuBtn');
+  if (menuBtn) {
+    menuBtn.onclick = () => document.body.classList.add('menu-open');
+    document.getElementById('scrim').onclick = () => document.body.classList.remove('menu-open');
   }
 </script>
 {% if user %}

@@ -2,24 +2,25 @@
 {% from "_icons.html" import icon %}
 {% block title %}{{ chat.title }}{% endblock %}
 {% block content %}
-<a class="back-link" href="/chats">{{ icon('arrow-left', 16) }} กลับไปหน้าแชทลูกค้า</a>
-<div class="page-head fade-in">
-  <div style="display:flex;align-items:center;gap:14px">
-    <span class="avatar chat" style="width:48px;height:48px;border-radius:15px;font-size:1.1rem">{{ chat.title[:1] | upper }}</span>
-    <div><h1>{{ chat.title }}</h1>
-      <p class="sub" style="margin:0">{{ messages | length }} ข้อความล่าสุด · {{ 'ติดตามอยู่' if chat.monitored else 'ไม่ได้ติดตาม' }}</p></div>
+<a class="crumb" href="/chats">{{ icon('arrow-left', 14) }} แชทลูกค้า</a>
+<div class="page-head">
+  <div>
+    <h1>{{ chat.title }}</h1>
+    <p class="sub">{{ messages | length }} ข้อความล่าสุด · {{ 'กำลังติดตาม' if chat.monitored else 'ไม่ได้ติดตาม' }}</p>
   </div>
 </div>
-<div class="card chatlog full fade-in">
-  {% for m in messages %}
-    <div class="msg {{ 'out' if m.is_outgoing }}">
-      <div class="meta">#{{ m.tg_message_id }} · {{ '[ทีมงาน]' if m.is_outgoing else m.sender_name }} · {{ m.date | localtime }}
-        {% if not m.analyzed %}<span class="pill st-open">ยังไม่วิเคราะห์</span>{% endif %}</div>
-      {% if m.text %}<div class="body">{{ m.text }}</div>{% endif %}
-      {% if m.media_path %}<a href="/media/{{ m.media_path }}" target="_blank"><img src="/media/{{ m.media_path }}" alt="รูปจากลูกค้า" class="thumb"></a>{% endif %}
-    </div>
-  {% else %}
-    <div class="empty"><div class="empty-ic">{{ icon('chat', 26) }}</div><strong>ยังไม่มีข้อความ</strong>ระบบบันทึกเฉพาะข้อความใหม่หลังจากเริ่มติดตาม</div>
-  {% endfor %}
+<div class="card flush">
+  <div class="chatlog full">
+    {% for m in messages %}
+      <div class="msg {{ 'out' if m.is_outgoing }}">
+        <div class="meta"><span class="mono">#{{ m.tg_message_id }}</span> · {{ 'ทีมงาน' if m.is_outgoing else m.sender_name }} · {{ m.date | localtime }}
+          {% if not m.analyzed %}<span class="tag st-open">ยังไม่วิเคราะห์</span>{% endif %}</div>
+        {% if m.text %}<div class="body">{{ m.text }}</div>{% endif %}
+        {% if m.media_path %}<a href="/media/{{ m.media_path }}" target="_blank"><img src="/media/{{ m.media_path }}" alt="รูปจากลูกค้า" class="thumb"></a>{% endif %}
+      </div>
+    {% else %}
+      <div class="empty"><strong>ยังไม่มีข้อความ</strong>ระบบบันทึกเฉพาะข้อความที่เข้ามาหลังเริ่มติดตาม</div>
+    {% endfor %}
+  </div>
 </div>
 {% endblock %}

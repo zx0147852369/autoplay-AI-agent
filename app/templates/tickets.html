@@ -1,12 +1,10 @@
 {% extends "base.html" %}
-{% from "_icons.html" import icon %}
 {% block title %}Tickets{% endblock %}
 {% block content %}
-<div class="page-head fade-in">
+<div class="page-head">
   <div>
-    <div class="eyebrow">{{ icon('ticket', 14) }} Issue tracker</div>
-    <h1>Tickets ปัญหาลูกค้า</h1>
-    <p class="sub">AI สรุปปัญหาจากแชทลูกค้าพร้อมรูปภาพและลิงก์เว็บไซต์ ให้โปรแกรมเมอร์รับงานและอัปเดตสถานะ</p>
+    <h1>Tickets</h1>
+    <p class="sub">ปัญหาที่ลูกค้าแจ้งในแชท สรุปพร้อมรูปภาพและลิงก์ ให้โปรแกรมเมอร์รับไปแก้</p>
   </div>
   <form method="get" class="filters">
     <select name="status" onchange="this.form.submit()" aria-label="สถานะ">
@@ -22,23 +20,23 @@
 </div>
 
 {% if tickets %}
-<div class="card flush fade-in">
+<div class="card flush">
   <div class="table-wrap">
   <table>
-    <thead><tr><th>#</th><th>ปัญหา</th><th>ประเภท</th><th>ลูกค้า</th><th>ความรุนแรง</th><th>สถานะ</th><th>ผู้รับผิดชอบ</th><th>เวลา</th></tr></thead>
+    <thead><tr><th>#</th><th class="col-title">เรื่อง</th><th class="col-opt">ประเภท</th><th>ลูกค้า</th><th>ความรุนแรง</th><th>สถานะ</th><th class="col-opt">ผู้รับผิดชอบ</th><th>เปิดเมื่อ</th></tr></thead>
     <tbody>
     {% for t in tickets %}
       <tr onclick="location.href='/tickets/{{ t.id }}'" style="cursor:pointer">
-        <td class="id">#{{ t.id }}</td>
-        <td><a class="title-link" href="/tickets/{{ t.id }}">{{ t.title }}</a>
+        <td class="id">{{ t.id }}</td>
+        <td class="col-title"><a class="title-link" href="/tickets/{{ t.id }}">{{ t.title }}</a>
           {% set sc = t.site_check | fromjson %}
-          {% if sc %}<div class="small {{ 'ok-text' if sc.ok else 'error-text' }}">{{ icon('globe', 12) }} เว็บ{{ 'เข้าได้' if sc.ok else 'เข้าไม่ได้' }}</div>{% endif %}</td>
-        <td class="small">{{ CATEGORIES.get(t.category, t.category) }}</td>
-        <td>{{ t.customer_name or '-' }}<div class="muted small">{{ chat_titles.get(t.chat_id, '') }}</div></td>
-        <td><span class="pill sev-{{ t.severity }}">{{ SEVERITY_LABELS[t.severity] }}</span></td>
-        <td><span class="pill st-{{ t.status }}">{{ TICKET_STATUSES[t.status] }}</span></td>
-        <td class="small">{{ users.get(t.assignee_id, '-') }}</td>
-        <td class="small muted">{{ t.created_at | localtime }}</td>
+          {% if sc and not sc.ok %}<div class="small error-text">เว็บเข้าไม่ได้</div>{% endif %}</td>
+        <td class="small col-opt">{{ CATEGORIES.get(t.category, t.category) }}</td>
+        <td class="nowrap">{{ t.customer_name or '-' }}<div class="muted small">{{ chat_titles.get(t.chat_id, '') }}</div></td>
+        <td><span class="tag sev-{{ t.severity }}">{{ SEVERITY_LABELS[t.severity] }}</span></td>
+        <td><span class="tag st-{{ t.status }}">{{ TICKET_STATUSES[t.status] }}</span></td>
+        <td class="small col-opt">{{ users.get(t.assignee_id, '—') }}</td>
+        <td class="when">{{ t.created_at | localtime }}</td>
       </tr>
     {% endfor %}
     </tbody>
@@ -46,6 +44,6 @@
   </div>
 </div>
 {% else %}
-  <div class="card empty fade-in"><div class="empty-ic">{{ icon('ticket', 26) }}</div><strong>ไม่มี ticket</strong>ไม่พบ ticket ตามตัวกรองนี้</div>
+  <div class="card empty"><strong>ไม่มี ticket</strong>ไม่พบ ticket ตามตัวกรองนี้</div>
 {% endif %}
 {% endblock %}

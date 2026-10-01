@@ -2,23 +2,32 @@
 {% from "_icons.html" import icon %}
 {% block title %}เข้าสู่ระบบ{% endblock %}
 {% block auth %}
-<div class="auth-card glass">
-  <div class="brand-mark">{{ icon('bot', 28) }}</div>
-  <h1>ยินดีต้อนรับกลับ</h1>
-  <p class="sub">เข้าสู่ระบบหลังบ้าน AI Support<br>ตอบแชท Telegram และติดตามปัญหาลูกค้า</p>
-  {% if need_setup %}
-    <div class="callout error" style="margin-bottom:18px">{{ icon('alert') }}
-      <span>ยังไม่ได้ตั้งค่า <code>ADMIN_PASSWORD</code> ใน <code>.env</code> หรือ Variables ของเซิร์ฟเวอร์ ตั้งค่าแล้วรีสตาร์ทระบบ</span></div>
-  {% endif %}
-  <form method="post" action="/login" class="stack">
-    <label class="field">ชื่อผู้ใช้
-      <span class="input-ic">{{ icon('user', 17) }}<input name="username" required autofocus autocomplete="username" placeholder="username"></span>
-    </label>
-    <label class="field">รหัสผ่าน
-      <span class="input-ic">{{ icon('lock', 17) }}<input name="password" type="password" required autocomplete="current-password" placeholder="••••••••"></span>
-    </label>
-    <button class="primary lg block" style="margin-top:6px">เข้าสู่ระบบ</button>
-  </form>
-  <div class="auth-foot">{{ icon('shield', 15) }} ทุกข้อความต้องได้รับการอนุมัติก่อนส่งถึงลูกค้า</div>
+<div class="auth-wrap">
+  <aside class="auth-side">
+    <div class="brand">
+      <span class="brand-mark">S</span>
+      <span class="brand-text"><strong>Support Desk</strong><small>ทีมดูแลลูกค้า</small></span>
+    </div>
+    <ul class="auth-points">
+      <li>{{ icon('inbox', 16) }}<span><strong>ตรวจก่อนส่งทุกข้อความ</strong>ร่างคำตอบจะรอในคิวจนกว่าทีมงานกดอนุมัติ</span></li>
+      <li>{{ icon('ticket', 16) }}<span><strong>ปัญหาลูกค้าเป็น ticket</strong>เว็บล่ม เข้าระบบไม่ได้ ฝากไม่เข้า ถูกบันทึกพร้อมรูปและลิงก์</span></li>
+      <li>{{ icon('users', 16) }}<span><strong>ส่งต่อให้โปรแกรมเมอร์</strong>มอบหมายงาน อัปเดตสถานะ และจดบันทึกการแก้ไขได้ในที่เดียว</span></li>
+    </ul>
+    <p class="fine">สำหรับทีมงานเท่านั้น</p>
+  </aside>
+  <main class="auth-main">
+    <div class="auth-form">
+      <h1>เข้าสู่ระบบ</h1>
+      <p class="sub">ใช้บัญชีที่ผู้ดูแลระบบสร้างให้</p>
+      {% if need_setup %}
+        <div class="note error" style="margin-bottom:18px">ยังไม่ได้ตั้งค่า <code>ADMIN_PASSWORD</code> บนเซิร์ฟเวอร์ ตั้งค่าใน Variables แล้วรีสตาร์ทระบบ</div>
+      {% endif %}
+      <form method="post" action="/login" class="stack">
+        <label class="field">ชื่อผู้ใช้ <input name="username" required autofocus autocomplete="username"></label>
+        <label class="field">รหัสผ่าน <input name="password" type="password" required autocomplete="current-password"></label>
+        <button class="primary lg block">เข้าสู่ระบบ</button>
+      </form>
+    </div>
+  </main>
 </div>
 {% endblock %}

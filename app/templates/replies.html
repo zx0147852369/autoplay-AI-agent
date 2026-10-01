@@ -1,91 +1,89 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon %}
-{% block title %}ข้อความรออนุมัติ{% endblock %}
+{% block title %}รออนุมัติ{% endblock %}
 {% block content %}
-<div class="page-head fade-in">
+<div class="page-head">
   <div>
-    <div class="eyebrow">{{ icon('shield', 14) }} Approval queue</div>
     <h1>ข้อความตอบกลับ</h1>
-    <p class="sub">AI ร่างคำตอบไว้ให้ ข้อความจะถูกส่งถึงลูกค้า<strong>เฉพาะเมื่อกด "อนุมัติและส่ง"</strong> เท่านั้น แก้ไขได้ก่อนส่ง</p>
+    <p class="sub">ร่างคำตอบจะถูกส่งถึงลูกค้าเมื่อกด "อนุมัติและส่ง" เท่านั้น แก้ข้อความก่อนส่งได้</p>
   </div>
-  <nav class="segmented">
-    {% for key, label in [('pending', 'รออนุมัติ'), ('sent', 'ส่งแล้ว'), ('rejected', 'ปฏิเสธ'), ('failed', 'ส่งไม่สำเร็จ'), ('all', 'ทั้งหมด')] %}
-      <a href="/replies?status={{ key }}" class="{{ 'active' if status == key }}">{{ label }}</a>
-    {% endfor %}
-  </nav>
 </div>
+<nav class="tabs">
+  {% for key, label in [('pending', 'รออนุมัติ'), ('sent', 'ส่งแล้ว'), ('rejected', 'ปฏิเสธ'), ('failed', 'ส่งไม่สำเร็จ'), ('all', 'ทั้งหมด')] %}
+    <a href="/replies?status={{ key }}" class="{{ 'active' if status == key }}">{{ label }}</a>
+  {% endfor %}
+</nav>
 
 {% for r in replies %}
-<article class="card reply fade-in">
+<article class="card reply">
   <header class="reply-head">
-    <span class="avatar chat">{{ (chat_titles.get(r.chat_id, '?') ~ '')[:1] | upper }}</span>
-    <span class="who"><strong>{{ chat_titles.get(r.chat_id, r.chat_id) }}</strong><small>{{ icon('clock', 12) }} {{ r.created_at | localtime }}</small></span>
-    {% if r.ticket_id %}<a class="pill cat" href="/tickets/{{ r.ticket_id }}">ticket #{{ r.ticket_id }}</a>{% endif %}
-    <span class="pill rs-{{ r.status }}">{{ REPLY_STATUSES.get(r.status, r.status) }}</span>
+    <span class="who">{{ chat_titles.get(r.chat_id, r.chat_id) }}</span>
+    <span class="when">{{ r.created_at | localtime }}</span>
+    {% if r.ticket_id %}<a class="tag" href="/tickets/{{ r.ticket_id }}">ticket #{{ r.ticket_id }}</a>{% endif %}
+    <span class="tag rs-{{ r.status }}">{{ REPLY_STATUSES.get(r.status, r.status) }}</span>
   </header>
 
   {% if r.status in ('pending', 'failed') %}
   <div class="reply-body">
-    <div class="reply-cols">
-      <div>
-        <div class="panel-label">{{ icon('chat', 14) }} บทสนทนาล่าสุด</div>
-        <div class="chatlog compact">
-          {% for m in context.get(r.id, []) %}
-            <div class="msg {{ 'out' if m.is_outgoing }} {{ 'target' if m.tg_message_id == r.reply_to_tg_id }}">
-              <div class="meta">{{ '[ทีมงาน]' if m.is_outgoing else m.sender_name }} · {{ m.date | localtime }}</div>
-              {% if m.text %}<div class="body">{{ m.text }}</div>{% endif %}
-              {% if m.media_path %}<a href="/media/{{ m.media_path }}" target="_blank"><img src="/media/{{ m.media_path }}" class="thumb small" alt="รูปจากลูกค้า"></a>{% endif %}
-            </div>
-          {% else %}<p class="muted small">ไม่มีข้อความ</p>{% endfor %}
-        </div>
-      </div>
-      <div class="stack">
-        {% if r.note %}<div class="callout ai">{{ icon('sparkles') }}<span>{{ r.note }}</span></div>{% endif %}
-        {% if r.error %}<div class="callout error">{{ icon('alert') }}<span>{{ r.error }}</span></div>{% endif %}
-        <form method="post" action="/replies/{{ r.id }}/approve" class="stack composer" id="approve-{{ r.id }}">
-          <label class="field"><span class="panel-label" style="margin:0">{{ icon('edit', 14) }} ข้อความที่จะส่ง</span>
-            <textarea name="text" rows="5" required>{{ r.final_text }}</textarea></label>
-          <div class="actions end">
-            <button class="primary" onclick="return confirm('ส่งข้อความนี้ถึงลูกค้า?')">{{ icon('send', 16) }} อนุมัติและส่ง</button>
+    <div>
+      <p class="section-title">ข้อความล่าสุดในแชท</p>
+      <div class="chatlog compact">
+        {% for m in context.get(r.id, []) %}
+          <div class="msg {{ 'out' if m.is_outgoing }} {{ 'target' if m.tg_message_id == r.reply_to_tg_id }}">
+            <div class="meta">{{ 'ทีมงาน' if m.is_outgoing else m.sender_name }} · {{ m.date | localtime }}</div>
+            {% if m.text %}<div class="body">{{ m.text }}</div>{% endif %}
+            {% if m.media_path %}<a href="/media/{{ m.media_path }}" target="_blank"><img src="/media/{{ m.media_path }}" class="thumb small" alt="รูปจากลูกค้า"></a>{% endif %}
           </div>
-        </form>
+        {% else %}<p class="muted small">ไม่มีข้อความ</p>{% endfor %}
       </div>
+    </div>
+    <div class="stack">
+      {% if r.note %}<div class="note"><strong>หมายเหตุ:</strong> {{ r.note }}</div>{% endif %}
+      {% if r.error %}<div class="note error"><strong>ส่งไม่สำเร็จ:</strong> {{ r.error }}</div>{% endif %}
+      <form method="post" action="/replies/{{ r.id }}/approve" class="stack composer" id="approve-{{ r.id }}">
+        <label class="field">ข้อความที่จะส่ง
+          <textarea name="text" rows="5" required>{{ r.final_text }}</textarea></label>
+        <div class="actions end">
+          <button class="go" onclick="return confirm('ส่งข้อความนี้ถึงลูกค้า?')">{{ icon('send', 15) }} อนุมัติและส่ง</button>
+        </div>
+      </form>
     </div>
   </div>
   <div class="tools">
     <form method="post" action="/replies/{{ r.id }}/regenerate" onsubmit="this.text.value=document.querySelector('#approve-{{ r.id }} textarea').value">
       <input type="hidden" name="text">
-      <input name="instruction" placeholder="สั่ง AI เขียนใหม่ เช่น สั้นลง / ขอสลิปด้วย / สุภาพขึ้น" required>
-      <button>{{ icon('wand', 16) }} ให้ AI เขียนใหม่</button>
+      <input name="instruction" placeholder="แก้ทั้งข้อความ เช่น สั้นลง / ขอสลิปด้วย / สุภาพขึ้น" required>
+      <button>เขียนใหม่</button>
     </form>
     <form method="post" action="/replies/{{ r.id }}/reject">
       <input name="reason" placeholder="เหตุผล (ไม่บังคับ)">
-      <button class="danger">{{ icon('x', 16) }} ปฏิเสธ</button>
+      <button class="danger">ไม่ส่ง</button>
     </form>
   </div>
   {% else %}
-  <div class="reply-body">
-    <div class="sent-text">{{ r.final_text }}</div>
-    <p class="muted small" style="margin:0">
-      {% if r.decided_by %}โดย {{ r.decided_by }} · {{ r.decided_at | localtime }}{% endif %}
-      {% if r.reject_reason %} · เหตุผล: {{ r.reject_reason }}{% endif %}
-      {% if r.final_text != r.ai_text %} · แก้ไขจากร่างของ AI{% endif %}
-    </p>
+  <div class="reply-body single">
+    <div>
+      <div class="sent-text">{{ r.final_text }}</div>
+      <p class="decided">
+        {% if r.decided_by %}{{ r.decided_by }} · {{ r.decided_at | localtime }}{% endif %}
+        {% if r.reject_reason %} · เหตุผล: {{ r.reject_reason }}{% endif %}
+        {% if r.final_text != r.ai_text %} · แก้ไขจากร่างเดิม{% endif %}
+      </p>
+    </div>
   </div>
   {% endif %}
 </article>
 {% else %}
-  <div class="card empty fade-in">
-    <div class="empty-ic">{{ icon('inbox', 26) }}</div>
-    <strong>{{ 'ไม่มีข้อความรออนุมัติ' if status == 'pending' else 'ไม่มีข้อความ' }}</strong>
-    เมื่อลูกค้าส่งข้อความในแชทที่ติดตาม AI จะร่างคำตอบมาไว้ที่นี่
+  <div class="card empty">
+    <strong>{{ 'ไม่มีข้อความรออนุมัติ' if status == 'pending' else 'ไม่มีข้อความในหมวดนี้' }}</strong>
+    ร่างคำตอบใหม่จะเข้ามาที่นี่เมื่อลูกค้าส่งข้อความในแชทที่ติดตาม
   </div>
 {% endfor %}
 {% endblock %}
 {% block scripts %}
 {% if status == 'pending' %}
 <script>
-  // รีเฟรชหน้าอัตโนมัติเมื่อมีร่างใหม่ ถ้าผู้ใช้ไม่ได้กำลังพิมพ์
+  // รีเฟรชเมื่อมีร่างใหม่ (ถ้าไม่ได้กำลังพิมพ์อยู่)
   let known = null;
   setInterval(async () => {
     if (document.activeElement && ['TEXTAREA', 'INPUT'].includes(document.activeElement.tagName)) return;

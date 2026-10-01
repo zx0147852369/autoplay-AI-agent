@@ -5,7 +5,7 @@ import sys
 import time
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
-from datetime import timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
@@ -91,7 +91,25 @@ def _localtime(dt):
     return dt.replace(tzinfo=timezone.utc).astimezone(DISPLAY_TZ).strftime("%d/%m/%Y %H:%M")
 
 
+THAI_DAYS = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"]
+THAI_MONTHS = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม",
+               "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"]
+
+
+def thai_today() -> str:
+    d = utcnow().replace(tzinfo=timezone.utc).astimezone(DISPLAY_TZ)
+    return f"วัน{THAI_DAYS[d.weekday()]}ที่ {d.day} {THAI_MONTHS[d.month - 1]} {d.year + 543}"
+
+
+def _iso_localtime(value: str) -> str:
+    try:
+        return _localtime(datetime.fromisoformat(value))
+    except (TypeError, ValueError):
+        return "-"
+
+
 templates.env.filters["localtime"] = _localtime
+templates.env.filters["isolocal"] = _iso_localtime
 templates.env.filters["fromjson"] = lambda s: json.loads(s) if s else None
 templates.env.globals.update(
     CATEGORIES=ai_service.CATEGORIES, TICKET_STATUSES=TICKET_STATUSES, SEVERITY_LABELS=SEVERITY_LABELS,
@@ -203,7 +221,7 @@ async def dashboard(request: Request):
         chat_titles = {c.id: c.title for c in db.scalars(select(Chat))}
     return render(request, "dashboard.html", user, account=account, pending=pending, open_by_cat=open_by_cat,
                   recent=recent, monitored=monitored, chat_titles=chat_titles,
-                  ai_errors=analyzer.last_error, connected=telegram.connected)
+                  ai_errors=analyzer.last_error, connected=telegram.connected, today=thai_today())
 
 
 @app.get("/api/badge")
