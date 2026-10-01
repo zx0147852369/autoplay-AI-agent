@@ -56,6 +56,11 @@
         <label class="field">ชื่อผู้ใช้ Telegram ของทีมงานในกลุ่มลูกค้า
           <input name="staff_usernames" value="{{ settings.staff_usernames }}" placeholder="Prime2499, admin2">
           <span class="hint">คนที่ไม่ใช่ลูกค้า เช่น แอดมินคนอื่น ข้อความของคนเหล่านี้จะไม่ถูกวิเคราะห์และไม่ทำให้ระบบร่างคำตอบ</span></label>
+        <label class="field">ไม่รับข้อความจากบัญชีเหล่านี้
+          <input name="ignore_usernames" value="{{ settings.ignore_usernames }}" placeholder="nsbmw_prod_bot">
+          <span class="hint">ระบบจะไม่บันทึกและไม่วิเคราะห์ข้อความจากบัญชีเหล่านี้ เช่น บอทแจ้งเตือนในกลุ่มลูกค้า · คั่นด้วยจุลภาค ไม่ต้องใส่ @</span></label>
+        <label class="check-row"><input type="checkbox" name="ignore_bots" {{ 'checked' if settings.ignore_bots == '1' }}>
+          <span>ไม่รับข้อความจากบอท Telegram ทุกตัว<span class="hint">บัญชีที่เป็นบอท (เช่น ชื่อลงท้าย _bot) จะถูกข้ามทั้งหมด</span></span></label>
         <label class="field">ชื่อผู้ใช้ Telegram ของโปรแกรมเมอร์
           <input name="dev_usernames" value="{{ settings.dev_usernames }}" placeholder="yuopa9, dev2">
           <span class="hint">คั่นด้วยเครื่องหมายจุลภาค ไม่ต้องใส่ @ ระบบจะอ่านเฉพาะข้อความจากคนเหล่านี้</span></label>

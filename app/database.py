@@ -239,6 +239,8 @@ DEFAULT_SETTINGS = {
     "dev_group_id": "",
     "dev_usernames": "yuopa9",
     "staff_usernames": "",  # ทีมงานคนอื่นในกลุ่มลูกค้า คั่นด้วยจุลภาค
+    "ignore_usernames": "nsbmw_prod_bot",  # บัญชีที่ไม่รับข้อความเลย คั่นด้วยจุลภาค
+    "ignore_bots": "1",  # ไม่รับข้อความจากบอท Telegram ทุกตัว
     "dev_forward": "1",
     "dev_require_approval": "1",  # ต้องอนุมัติก่อนส่ง ticket เข้ากลุ่มโปรแกรมเมอร์
     "dev_watch": "1",

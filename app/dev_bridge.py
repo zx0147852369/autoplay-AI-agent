@@ -47,6 +47,10 @@ def configure() -> None:
         settings = get_settings(db)
     telegram.set_dev(settings.get("dev_group_id"), settings.get("dev_usernames", ""))
     telegram.set_staff(settings.get("staff_usernames", ""))
+    telegram.set_ignore(settings.get("ignore_usernames", ""), settings.get("ignore_bots") == "1")
+    removed = telegram.purge_ignored()
+    if removed:
+        log.info("ลบข้อความจากบัญชีที่ไม่รับข้อความ %s ข้อความ", removed)
     telegram.on_dev_message = _schedule
     telegram.on_connected = on_telegram_connected
 

@@ -41,6 +41,9 @@ class TelegramService:
         self.dev_users: set[str] = set()
         # ทีมงานคนอื่นในกลุ่มลูกค้า (นอกจากบัญชีที่เชื่อมต่อ) ข้อความของคนเหล่านี้ไม่ต้องวิเคราะห์
         self.staff_users: set[str] = set()
+        # บัญชีที่ไม่รับข้อความเลย (ไม่บันทึก ไม่วิเคราะห์) เช่น บอทแจ้งเตือน
+        self.ignore_users: set[str] = set()
+        self.ignore_bots = True
         self.on_dev_message = None
         self.on_connected = None  # async callback หลังเชื่อมต่อสำเร็จ
 
@@ -58,6 +61,28 @@ class TelegramService:
 
     def set_staff(self, usernames: str) -> None:
         self.staff_users = {u.strip().lstrip("@").lower() for u in (usernames or "").replace("\n", ",").split(",") if u.strip()}
+
+    def set_ignore(self, usernames: str, ignore_bots: bool) -> None:
+        self.ignore_users = {u.strip().lstrip("@").lower() for u in (usernames or "").replace("\n", ",").split(",") if u.strip()}
+        self.ignore_bots = ignore_bots
+
+    def is_ignored(self, msg, sender) -> bool:
+        if msg is not None and msg.out:
+            return False
+        username = (getattr(sender, "username", None) or "").lower()
+        return (bool(username) and username in self.ignore_users) or (self.ignore_bots and bool(getattr(sender, "bot", False)))
+
+    def purge_ignored(self) -> int:
+        """ลบข้อความเก่าจากบัญชีที่ไม่รับข้อความ (ชื่อผู้ส่งเก็บเป็น "ชื่อ (@username)")"""
+        if not self.ignore_users:
+            return 0
+        deleted = 0
+        with SessionLocal() as db:
+            for username in self.ignore_users:
+                deleted += db.query(Message).filter(Message.sender_name.ilike(f"%(@{username})")).delete(
+                    synchronize_session=False)
+            db.commit()
+        return deleted
 
     def is_staff(self, msg, sender) -> bool:
         username = (getattr(sender, "username", None) or "").lower()
@@ -248,6 +273,8 @@ class TelegramService:
                 senders.append(await m.get_sender())
             except RPCError:
                 senders.append(None)
+        kept = [(m, s) for m, s in zip(msgs, senders) if not self.is_ignored(m, s)]
+        msgs, senders = [m for m, _ in kept], [s for _, s in kept]
         staff = [self.is_staff(m, s) for m, s in zip(msgs, senders)]
         last_staff = max((i for i, is_staff in enumerate(staff) if is_staff), default=-1)
         cutoff = utcnow() - timedelta(hours=unanswered_hours)
@@ -330,6 +357,8 @@ class TelegramService:
             sender = await event.get_sender()
         except RPCError:
             sender = None
+        if self.is_ignored(msg, sender):
+            return  # ไม่รับข้อความจากบัญชีนี้ (เช่น บอทแจ้งเตือน)
         staff = self.is_staff(msg, sender)
         media_path = "" if staff else await self._download_image(event.chat_id, msg)
         # ข้อความของทีมงานไม่ต้องวิเคราะห์

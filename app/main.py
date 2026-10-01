@@ -854,7 +854,7 @@ async def settings_save(request: Request):
     with SessionLocal() as db:
         for key in DEFAULT_SETTINGS:
             if key in ("auto_draft", "auto_ticket", "site_check", "ask_link", "notify_resolved", "dev_forward",
-                       "dev_require_approval", "dev_watch"):
+                       "dev_require_approval", "dev_watch", "ignore_bots"):
                 value = "1" if form.get(key) else "0"
             elif key == "gemini_limits":
                 limits = {}
