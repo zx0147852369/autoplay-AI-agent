@@ -841,3 +841,21 @@ img.avatar.logo { object-fit: cover; background: #fff; border: 1px solid var(--l
 .sidebar-foot .user-meta small, .sidebar-foot .user-meta strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sidebar-foot .icon-btn { width: 28px; height: 28px; flex-shrink: 0; }
 
+/* ---------- ขั้นตอนเจนบัญชี SCB LINE Connect ---------- */
+.bankgen { border-left: 3px solid var(--pine); }
+.bankgen-top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 14px; }
+.bankgen-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bankgen-name code { background: var(--grey-tint); padding: 2px 8px; border-radius: var(--r); }
+.bankgen-steps { list-style: none; margin: 0; padding: 0; counter-reset: s; }
+.bankgen-steps li { border-top: 1px solid var(--line); }
+.bankgen-steps li:first-child { border-top: 0; }
+.bankgen-steps form { display: flex; align-items: center; gap: 12px; padding: 9px 0; width: 100%; background: none; border: 0; }
+.bankgen-check {
+  flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  border: 1.5px solid var(--line-2); background: var(--surface); color: var(--muted); font-size: 0.82rem; font-weight: 600;
+}
+.bankgen-check:hover { border-color: var(--pine); color: var(--pine); }
+.bankgen-steps li.done .bankgen-check { background: var(--pine); border-color: var(--pine); color: #fff; }
+.bankgen-label { font-size: 0.92rem; line-height: 1.5; text-align: left; }
+.bankgen-steps li.done .bankgen-label { color: var(--muted); text-decoration: line-through; }
+

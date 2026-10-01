@@ -14,6 +14,40 @@
   </div>
 </div>
 
+{% if bank_steps %}
+<section class="card bankgen">
+  <div class="card-head">
+    <h2>{{ cicon('clipboard-task', 20) }} ขั้นตอนเจนบัญชี SCB LINE Connect</h2>
+    <span class="count">{{ bank_done | length }}/{{ bank_steps | length }} ขั้นตอน</span>
+  </div>
+  <div class="bankgen-top">
+    <a class="btn go" href="{{ bank_panel_url }}" target="_blank" rel="noopener noreferrer">{{ icon('external', 15) }} เปิดเว็บ all-bank (เข้าสู่ระบบเอง)</a>
+    {% if chat %}
+    <div class="bankgen-name">
+      <span class="muted small">ตั้งชื่อบัญชีตามกลุ่ม:</span>
+      <code class="mono" id="grpName">{{ chat.title }}</code>
+      <button type="button" class="btn sm" onclick="navigator.clipboard.writeText(document.getElementById('grpName').textContent).then(()=>{this.textContent='คัดลอกแล้ว';setTimeout(()=>this.textContent='คัดลอกชื่อ',1500)})">คัดลอกชื่อ</button>
+    </div>
+    {% endif %}
+  </div>
+  <ol class="bankgen-steps">
+    {% for key, label in bank_steps %}
+    <li class="{{ 'done' if key in bank_done }}">
+      <form method="post" action="/tickets/{{ ticket.id }}/checklist">
+        <input type="hidden" name="step" value="{{ key }}">
+        <input type="hidden" name="done" value="{{ '' if key in bank_done else '1' }}">
+        <button type="submit" class="bankgen-check" aria-label="สลับสถานะขั้นตอน">
+          {% if key in bank_done %}{{ icon('check', 14) }}{% else %}{{ loop.index }}{% endif %}
+        </button>
+        <span class="bankgen-label">{{ label }}</span>
+      </form>
+    </li>
+    {% endfor %}
+  </ol>
+  <p class="hint" style="margin:10px 0 0">ระบบไม่ได้ล็อกอินหรือสร้างบัญชีให้อัตโนมัติ · แอดมินทำบนเว็บ all-bank เอง · QR และลิงก์ v3 ส่งให้ลูกค้าผ่านช่องตอบในหน้านี้/หน้ารออนุมัติ</p>
+</section>
+{% endif %}
+
 <div class="grid-2 wide-left">
   <div>
     <section class="card">

@@ -27,6 +27,9 @@ EPHEMERAL_STORAGE = ON_CLOUD and not _on_volume
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 
+# ลิงก์แผงจัดการบัญชีธนาคาร (แอดมินคลิกเปิดเองเพื่อเจนบัญชี SCB LINE Connect)
+BANK_PANEL_URL = os.getenv("BANK_PANEL_URL", "https://all-bank.xserver.bet/login")
+
 HOST = os.getenv("HOST") or ("0.0.0.0" if ON_CLOUD else "127.0.0.1")
 PORT = int(os.getenv("PORT", "8000"))
 
