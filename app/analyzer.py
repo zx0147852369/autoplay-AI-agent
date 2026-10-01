@@ -7,7 +7,7 @@ import time
 
 from sqlalchemy import func, select
 
-from . import ai_service
+from . import ai_service, dev_bridge
 from .database import (
     Chat, Message, Reply, SessionLocal, Ticket, TicketAttachment, TicketEvent, get_settings, int_setting, utcnow,
 )
@@ -105,6 +105,9 @@ async def analyze(chat_id: int) -> str:
                 select(Ticket).where(Ticket.chat_id == chat_id, Ticket.status.in_(OPEN_STATUSES))
             ))
 
+        if str(chat_id) == settings.get("dev_group_id"):
+            _mark_analyzed(new_messages)  # กลุ่มโปรแกรมเมอร์ไม่ใช่แชทลูกค้า
+            return "กลุ่มโปรแกรมเมอร์"
         if settings.get("auto_draft") != "1" and settings.get("auto_ticket") != "1":
             _mark_analyzed(new_messages)
             return "ปิดการทำงานอัตโนมัติไว้"
@@ -166,6 +169,7 @@ async def _save_ticket(chat_id: int, result: ai_service.Analysis, new_messages: 
     customer_msgs = [m for m in new_messages if not m.is_outgoing]
     with SessionLocal() as db:
         ticket = None
+        created = False
         if result.existing_ticket_id:
             ticket = db.get(Ticket, result.existing_ticket_id)
             if not ticket or ticket.chat_id != chat_id or ticket.status not in OPEN_STATUSES:
@@ -182,6 +186,7 @@ async def _save_ticket(chat_id: int, result: ai_service.Analysis, new_messages: 
             )
             db.add(ticket)
             db.flush()
+            created = True
             db.add(TicketEvent(ticket_id=ticket.id, kind="ai_summary", author="AI", body=result.issue_summary))
         else:
             db.add(TicketEvent(ticket_id=ticket.id, kind="ai_summary", author="AI",
@@ -205,6 +210,14 @@ async def _save_ticket(chat_id: int, result: ai_service.Analysis, new_messages: 
             await run_site_check(ticket_id)
         except Exception:  # noqa: BLE001
             log.exception("site check failed for ticket %s", ticket_id)
+    # แจ้งกลุ่มโปรแกรมเมอร์: ticket ใหม่ -> โพสต์รายละเอียด, ticket เดิม -> ส่งข้อมูลเพิ่มจากลูกค้า
+    try:
+        if created:
+            await dev_bridge.post_ticket(ticket_id)
+        else:
+            await dev_bridge.post_customer_update(ticket_id, customer_msgs)
+    except Exception:  # noqa: BLE001
+        log.exception("notify dev group failed for ticket %s", ticket_id)
     return ticket_id
 
 

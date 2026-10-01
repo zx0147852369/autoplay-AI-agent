@@ -30,6 +30,7 @@
       <span class="when">{{ r.created_at | localtime }}</span>
       {% if r.ticket_id %}<a class="tag" href="/tickets/{{ r.ticket_id }}">ticket #{{ r.ticket_id }}</a>{% endif %}
       {% if r.kind == 'resolved' %}<span class="tag st-resolved">{{ icon('check', 12) }} แจ้งแก้ไขเสร็จ</span>{% endif %}
+      {% if r.kind == 'dev_update' %}<span class="tag st-in_progress">จากโปรแกรมเมอร์</span>{% endif %}
       <span class="tag rs-{{ r.status }}">{{ REPLY_STATUSES.get(r.status, r.status) }}</span>
     </header>
     <div class="reply-body">
@@ -97,7 +98,8 @@
             {% if r.error %}<div class="small error-text">{{ r.error }}</div>{% endif %}
           </td>
           <td class="shrink"><span class="tag rs-{{ r.status }}">{{ REPLY_STATUSES.get(r.status, r.status) }}</span>
-            {% if r.kind == 'resolved' %}<div class="small ok-text">แจ้งแก้ไขเสร็จ</div>{% endif %}</td>
+            {% if r.kind == 'resolved' %}<div class="small ok-text">แจ้งแก้ไขเสร็จ</div>{% endif %}
+            {% if r.kind == 'dev_update' %}<div class="small" style="color:var(--blue)">จากโปรแกรมเมอร์</div>{% endif %}</td>
           <td class="shrink small">{% if r.decided_by %}{{ r.decided_by }}<div class="when">{{ r.decided_at | localtime }}</div>{% else %}<span class="zero">—</span>{% endif %}</td>
           <td class="shrink">{% if r.ticket_id %}<a class="tag" href="/tickets/{{ r.ticket_id }}">#{{ r.ticket_id }}</a>{% else %}<span class="zero">—</span>{% endif %}</td>
         </tr>

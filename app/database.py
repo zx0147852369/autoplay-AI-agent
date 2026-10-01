@@ -132,6 +132,18 @@ class TicketEvent(Base):
     ticket: Mapped[Ticket] = relationship(back_populates="events")
 
 
+class TicketLink(Base):
+    """ข้อความในกลุ่มโปรแกรมเมอร์ที่ผูกกับ ticket (ใช้รู้ว่าโปรแกรมเมอร์ตอบเรื่อง ticket ไหน)"""
+
+    __tablename__ = "ticket_links"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ticket_id: Mapped[int] = mapped_column(ForeignKey("tickets.id"), index=True)
+    chat_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    tg_message_id: Mapped[int] = mapped_column(Integer, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class TicketAttachment(Base):
     __tablename__ = "ticket_attachments"
 
@@ -190,6 +202,11 @@ DEFAULT_SETTINGS = {
         "สวัสดีค่ะ คุณ{customer} ปัญหา \"{title}\" ที่แจ้งไว้ ทีมงานได้แก้ไขเรียบร้อยแล้วค่ะ "
         "รบกวนลองใช้งานอีกครั้ง หากยังพบปัญหาแจ้งทีมงานได้เลยนะคะ ขอบคุณค่ะ"
     ),
+    # กลุ่มโปรแกรมเมอร์ (เช่น Autopay Support): ส่ง ticket เข้ากลุ่ม และอ่านข้อความโปรแกรมเมอร์
+    "dev_group_id": "",
+    "dev_usernames": "yuopa9",
+    "dev_forward": "1",
+    "dev_watch": "1",
 }
 
 

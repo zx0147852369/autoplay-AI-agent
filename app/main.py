@@ -16,7 +16,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import ai_service, analyzer
+from . import ai_service, analyzer, dev_bridge
 from .config import ADMIN_PASSWORD, ADMIN_USERNAME, DATA_DIR, DISPLAY_TZ, EPHEMERAL_STORAGE, MEDIA_DIR, SECRET_KEY
 from .database import (
     DEFAULT_SETTINGS,
@@ -28,12 +28,14 @@ from .database import (
     TelegramAccount,
     Ticket,
     TicketEvent,
+    TicketLink,
     User,
     get_settings,
     init_db,
     int_setting,
     utcnow,
 )
+from .notices import sync_resolved_notice
 from .security import decrypt, hash_password, verify_password
 from .telegram_service import TelegramLoginError, telegram
 
@@ -77,6 +79,7 @@ async def lifespan(app: FastAPI):
     if EPHEMERAL_STORAGE:
         log.warning("ข้อมูลไม่ได้อยู่ใน Railway Volume: ตั้งค่าและข้อมูลทั้งหมดจะหายเมื่อ deploy ใหม่")
     telegram.on_message = analyzer.schedule
+    dev_bridge.configure()
     startup = asyncio.create_task(telegram.start_from_db())
     sweeper = asyncio.create_task(analyzer.sweeper())
     yield
@@ -380,6 +383,7 @@ async def chats_page(request: Request):
     }
     return render(request, "chats.html", user, chats=chats, counts=counts, today_counts=today_counts,
                   last_at=last_at, open_tickets=open_tickets, pending=pending, summary=summary, unanalyzed=unanalyzed,
+                  dev_group_id=telegram.dev_group_id,
                   connected=telegram.connected, ai_errors=analyzer.last_error)
 
 
@@ -395,6 +399,13 @@ async def chats_sync(request: Request):
             else:
                 chat.title, chat.kind = d["title"], d["kind"]
         db.commit()
+        dev_set = get_settings(db).get("dev_group_id")
+        match = next((d for d in dialogs if d["kind"] != "user" and "autopay support" in d["title"].lower()), None)
+        if not dev_set and match:
+            db.merge(Setting(key="dev_group_id", value=str(match["id"])))
+            db.commit()
+            flash(request, f"ตั้งกลุ่ม \"{match['title']}\" เป็นกลุ่มแจ้งปัญหาโปรแกรมเมอร์แล้ว (เปลี่ยนได้ที่หน้าตั้งค่า)")
+    dev_bridge.configure()
     flash(request, f"ดึงรายชื่อแชท {len(dialogs)} รายการ" if dialogs else "ยังไม่ได้เชื่อมต่อ Telegram",
           "ok" if dialogs else "error")
     return back("/chats")
@@ -594,8 +605,22 @@ async def ticket_detail(request: Request, ticket_id: int):
         chat = db.get(Chat, ticket.chat_id)
         users = list(db.scalars(select(User).order_by(User.username)))
         replies = list(db.scalars(select(Reply).where(Reply.ticket_id == ticket_id).order_by(Reply.created_at)))
+        dev_posted = db.scalar(select(func.count(TicketLink.id)).where(TicketLink.ticket_id == ticket_id))
     return render(request, "ticket_detail.html", user, ticket=ticket, events=events, attachments=attachments,
-                  chat=chat, users=users, replies=replies)
+                  chat=chat, users=users, replies=replies, dev_posted=dev_posted,
+                  dev_group_set=bool(telegram.dev_group_id))
+
+
+@app.post("/tickets/{ticket_id}/post-dev")
+async def ticket_post_dev(request: Request, ticket_id: int):
+    current_user(request, "agent")
+    try:
+        result = await dev_bridge.post_ticket(ticket_id, force=True)
+    except Exception as e:  # noqa: BLE001
+        log.exception("post ticket to dev group failed")
+        result = f"ส่งไม่สำเร็จ: {e}"
+    flash(request, result or "ส่งแล้ว", "ok" if result.startswith("ส่งเข้ากลุ่ม") else "error")
+    return back(f"/tickets/{ticket_id}")
 
 
 @app.post("/tickets/{ticket_id}/update")
@@ -631,42 +656,6 @@ async def ticket_update(request: Request, ticket_id: int, status: str = Form(...
     return back(f"/tickets/{ticket_id}")
 
 
-def resolved_message(settings: dict[str, str], ticket: Ticket) -> str:
-    customer = (ticket.customer_name or "").split(" (@")[0].strip() or "ลูกค้า"
-    template = settings.get("resolved_message") or DEFAULT_SETTINGS["resolved_message"]
-    try:
-        return template.format(customer=customer, title=ticket.title, ticket_id=ticket.id)
-    except (KeyError, IndexError, ValueError):
-        return template  # รูปแบบข้อความผิด ใช้ข้อความตามที่พิมพ์ไว้
-
-
-def sync_resolved_notice(db, ticket: Ticket, username: str) -> str:
-    """เรียกเมื่อสถานะ ticket เปลี่ยน: เปลี่ยนเป็น "แก้ไขแล้ว" -> ร่างข้อความแจ้งลูกค้า (รออนุมัติ)
-    เปลี่ยนกลับเป็นยังไม่เสร็จ -> ยกเลิกข้อความที่ยังไม่ได้ส่ง"""
-    pending = list(db.scalars(select(Reply).where(
-        Reply.ticket_id == ticket.id, Reply.kind == "resolved", Reply.status.in_(("pending", "failed")))))
-    if ticket.status in ("open", "in_progress"):
-        for r in pending:
-            r.status = "superseded"
-        db.commit()
-        return "cancelled" if pending else ""
-    if ticket.status != "resolved" or pending:
-        return ""
-    settings = get_settings(db)
-    if settings.get("notify_resolved") != "1":
-        return ""
-    already_sent = db.scalar(select(func.count(Reply.id)).where(
-        Reply.ticket_id == ticket.id, Reply.kind == "resolved", Reply.status == "sent"))
-    if already_sent:
-        return ""
-    # ตอบกลับข้อความที่ลูกค้าแจ้งปัญหาไว้ (ดูจากคำตอบก่อนหน้าของ ticket นี้)
-    reply_to = db.scalar(select(Reply.reply_to_tg_id).where(
-        Reply.ticket_id == ticket.id, Reply.reply_to_tg_id.is_not(None)).order_by(Reply.created_at).limit(1))
-    text = resolved_message(settings, ticket)
-    db.add(Reply(chat_id=ticket.chat_id, reply_to_tg_id=reply_to, ai_text=text, final_text=text, kind="resolved",
-                 ticket_id=ticket.id, note=f"แจ้งลูกค้าว่า ticket #{ticket.id} แก้ไขเรียบร้อยแล้ว (โดย {username})"))
-    db.commit()
-    return "created"
 
 
 @app.post("/tickets/{ticket_id}/note")
@@ -709,7 +698,10 @@ async def settings_page(request: Request):
     with SessionLocal() as db:
         settings = get_settings(db)
         users = list(db.scalars(select(User).order_by(User.username)))
-    return render(request, "settings.html", user, settings=settings, users=users,
+    with SessionLocal() as db:
+        groups = list(db.scalars(select(Chat).where(Chat.kind != "user").order_by(Chat.title)))
+    suggested = next((g for g in groups if "autopay support" in g.title.lower()), None)
+    return render(request, "settings.html", user, settings=settings, users=users, groups=groups, suggested=suggested,
                   has_gemini_key=bool(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")),
                   has_claude_key=bool(os.getenv("ANTHROPIC_API_KEY")))
 
@@ -720,8 +712,12 @@ async def settings_save(request: Request):
     form = await request.form()
     with SessionLocal() as db:
         for key in DEFAULT_SETTINGS:
-            if key in ("auto_draft", "auto_ticket", "site_check", "notify_resolved"):
+            if key in ("auto_draft", "auto_ticket", "site_check", "notify_resolved", "dev_forward", "dev_watch"):
                 value = "1" if form.get(key) else "0"
+            elif key == "dev_group_id":
+                value = str(form.get(key, "")).strip()
+                if value and not value.lstrip("-").isdigit():
+                    continue
             elif key == "ai_model":
                 value = str(form.get(key, ""))
                 if value not in ai_service.GEMINI_MODELS and value not in ai_service.CLAUDE_MODELS:
@@ -737,6 +733,7 @@ async def settings_save(request: Request):
             row.value = value
             db.merge(row)
         db.commit()
+    dev_bridge.configure()
     flash(request, "บันทึกการตั้งค่าแล้ว")
     return back("/settings")
 

@@ -34,12 +34,23 @@ class TelegramService:
         self.client: TelegramClient | None = None
         self._pending_login: dict | None = None  # เก็บ client ระหว่างขั้นตอนขอรหัส -> ยืนยันรหัส
         self._monitored: set[int] = set()
-        self.on_message = None  # callback(message_id) ถูกตั้งจาก analyzer
+        self.on_message = None  # callback(chat_id) ถูกตั้งจาก analyzer
+        # กลุ่มโปรแกรมเมอร์: chat id, username ที่ต้องติดตาม (ตัวพิมพ์เล็ก ไม่มี @), callback(dict)
+        self.dev_group_id: int | None = None
+        self.dev_users: set[str] = set()
+        self.on_dev_message = None
 
     # ------------------------------------------------------------------ state
     @property
     def connected(self) -> bool:
         return self.client is not None and self.client.is_connected()
+
+    def set_dev(self, group_id: str | int | None, usernames: str) -> None:
+        try:
+            self.dev_group_id = int(group_id) if group_id else None
+        except (TypeError, ValueError):
+            self.dev_group_id = None
+        self.dev_users = {u.strip().lstrip("@").lower() for u in (usernames or "").replace("\n", ",").split(",") if u.strip()}
 
     def reload_monitored(self) -> None:
         with SessionLocal() as db:
@@ -86,7 +97,7 @@ class TelegramService:
         await client.get_dialogs()
         log.info("Telegram connected as %s", name)
         # ข้อความที่เข้ามาระหว่างระบบปิด (เช่นตอน deploy) -> ดึงมาวิเคราะห์ต่อ
-        for chat_id in list(self._monitored):
+        for chat_id in list(self._monitored - {self.dev_group_id}):
             try:
                 if await self.backfill(chat_id) and self.on_message:
                     self.on_message(chat_id)
@@ -174,14 +185,32 @@ class TelegramService:
             dialogs.append({"id": d.id, "title": d.name or str(d.id), "kind": kind})
         return dialogs
 
-    async def send_reply(self, chat_id: int, text: str, reply_to: int | None) -> None:
+    async def _entity(self, chat_id: int):
         if not self.connected:
             raise TelegramLoginError("ยังไม่ได้เชื่อมต่อ Telegram")
         try:
-            entity = await self.client.get_input_entity(chat_id)
+            return await self.client.get_input_entity(chat_id)
         except ValueError:
             await self.client.get_dialogs()
-            entity = await self.client.get_input_entity(chat_id)
+            return await self.client.get_input_entity(chat_id)
+
+    async def send_text(self, chat_id: int, text: str, reply_to: int | None = None) -> int:
+        """ส่งข้อความ (ใช้กับกลุ่มภายใน) คืนค่า message id"""
+        entity = await self._entity(chat_id)
+        msg = await self.client.send_message(entity, text, reply_to=reply_to or None, link_preview=False)
+        return msg.id
+
+    async def send_files(self, chat_id: int, paths: list[str], reply_to: int | None = None) -> list[int]:
+        """ส่งรูปเป็นอัลบั้ม คืนค่า message id ของทุกรูป"""
+        if not paths:
+            return []
+        entity = await self._entity(chat_id)
+        sent = await self.client.send_file(entity, paths if len(paths) > 1 else paths[0], reply_to=reply_to or None)
+        sent = sent if isinstance(sent, list) else [sent]
+        return [m.id for m in sent]
+
+    async def send_reply(self, chat_id: int, text: str, reply_to: int | None) -> None:
+        entity = await self._entity(chat_id)
         try:
             await self.client.send_message(entity, text, reply_to=reply_to or None)
         except RPCError as e:
@@ -245,7 +274,31 @@ class TelegramService:
             ))
             db.commit()
 
+    async def _handle_dev_message(self, event: events.NewMessage.Event) -> None:
+        msg = event.message
+        if msg.out or not self.on_dev_message:
+            return
+        try:
+            sender = await event.get_sender()
+        except RPCError:
+            return
+        username = (getattr(sender, "username", None) or "").lower()
+        if username not in self.dev_users:
+            return
+        reply_to = getattr(msg, "reply_to_msg_id", None)
+        self.on_dev_message({
+            "chat_id": event.chat_id,
+            "message_id": msg.id,
+            "reply_to": reply_to,
+            "text": msg.message or ("(รูปภาพ)" if msg.photo else ""),
+            "username": username,
+            "sender_name": self._sender_name(sender),
+        })
+
     async def _handle_new_message(self, event: events.NewMessage.Event) -> None:
+        if self.dev_group_id and event.chat_id == self.dev_group_id:
+            await self._handle_dev_message(event)  # กลุ่มโปรแกรมเมอร์ ไม่ใช่แชทลูกค้า
+            return
         if event.chat_id not in self._monitored:
             return
         msg = event.message

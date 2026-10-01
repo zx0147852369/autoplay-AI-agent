@@ -40,6 +40,29 @@
         <span class="hint">ใส่ <code>{customer}</code> = ชื่อลูกค้า, <code>{title}</code> = หัวข้อปัญหา, <code>{ticket_id}</code> = เลข ticket</span></label>
     </section>
     <section class="card">
+      <div class="card-head"><h2>กลุ่มแจ้งปัญหาโปรแกรมเมอร์</h2></div>
+      {% set current = settings.dev_group_id or (suggested.id | string if suggested else '') %}
+      <div class="stack">
+        <label class="field">กลุ่มที่ใช้แจ้งปัญหา
+          <select name="dev_group_id">
+            <option value="">— ไม่ใช้ —</option>
+            {% for g in groups %}<option value="{{ g.id }}" {{ 'selected' if current == g.id | string }}>{{ g.title }}</option>{% endfor %}
+          </select>
+          {% if not settings.dev_group_id and suggested %}<span class="hint">เลือก "{{ suggested.title }}" ให้แล้ว กดบันทึกเพื่อใช้งาน</span>
+          {% elif not groups %}<span class="hint">ยังไม่มีรายชื่อกลุ่ม ไปที่หน้าแชทลูกค้าแล้วกด "ดึงรายชื่อแชทจาก Telegram"</span>{% endif %}
+        </label>
+        <label class="field">ชื่อผู้ใช้ Telegram ของโปรแกรมเมอร์
+          <input name="dev_usernames" value="{{ settings.dev_usernames }}" placeholder="yuopa9, dev2">
+          <span class="hint">คั่นด้วยเครื่องหมายจุลภาค ไม่ต้องใส่ @ ระบบจะอ่านเฉพาะข้อความจากคนเหล่านี้</span></label>
+        <div>
+          <label class="check-row"><input type="checkbox" name="dev_forward" {{ 'checked' if settings.dev_forward == '1' }}>
+            <span>ส่ง ticket ใหม่เข้ากลุ่มอัตโนมัติ<span class="hint">พร้อมรูปจากลูกค้า และข้อมูลเพิ่มเติมที่ลูกค้าส่งตามมา</span></span></label>
+          <label class="check-row"><input type="checkbox" name="dev_watch" {{ 'checked' if settings.dev_watch == '1' }}>
+            <span>อ่านข้อความโปรแกรมเมอร์และอัปเดต ticket<span class="hint">โปรแกรมเมอร์ต้อง reply โพสต์ ticket หรือพิมพ์ #เลข ticket · ข้อความถึงลูกค้ายังต้องอนุมัติก่อนส่ง</span></span></label>
+        </div>
+      </div>
+    </section>
+    <section class="card">
       <div class="card-head"><h2>โมเดลและเวลา</h2></div>
       <div class="stack">
         <label class="field">โมเดล AI

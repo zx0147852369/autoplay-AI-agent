@@ -39,6 +39,7 @@
     {% for c in chats %}
       <tr class="{{ '' if c.monitored else 'dim' }}">
         <td><a class="title-link" href="/chats/{{ c.id }}">{{ c.title }}</a>
+          {% if c.id == dev_group_id %}<span class="tag st-in_progress">กลุ่มโปรแกรมเมอร์</span>{% endif %}
           {% if ai_errors.get(c.id) %}<div class="small error-text">{{ ai_errors[c.id] }}</div>{% endif %}</td>
         <td class="shrink small">{{ {'group': 'กลุ่ม', 'channel': 'แชนแนล', 'user': 'แชทส่วนตัว'}[c.kind] }}</td>
         <td class="shrink">
@@ -57,7 +58,8 @@
         <td class="num center">{% if n_pending %}<a href="/replies" class="tag rs-pending">{{ n_pending }}</a>{% else %}<span class="zero">0</span>{% endif %}</td>
         {% set n_wait = unanalyzed.get(c.id, 0) %}
         <td class="shrink">
-          {% if not c.monitored %}<span class="zero">—</span>
+          {% if c.id == dev_group_id %}<span class="state off">ใช้แจ้งปัญหา</span>
+          {% elif not c.monitored %}<span class="zero">—</span>
           {% elif ai_errors.get(c.id) %}
             <div class="ai-cell">
               <span class="state bad"><span class="dot off"></span>ผิดพลาด</span>

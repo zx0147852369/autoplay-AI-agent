@@ -55,7 +55,7 @@
 
     <section class="card">
       <div class="card-head"><h2>ประวัติ</h2></div>
-      {% set kinds = {'customer_message': 'ลูกค้า', 'ai_summary': 'สรุปอัตโนมัติ', 'note': 'บันทึก', 'status': 'อัปเดต', 'site_check': 'ตรวจเว็บ'} %}
+      {% set kinds = {'customer_message': 'ลูกค้า', 'ai_summary': 'สรุปอัตโนมัติ', 'note': 'บันทึก', 'status': 'อัปเดต', 'site_check': 'ตรวจเว็บ', 'dev': 'โปรแกรมเมอร์'} %}
       <ol class="timeline">
         {% for e in events %}
           <li class="ev-{{ e.kind }}">
@@ -96,12 +96,30 @@
         <p class="hint" style="margin:0">เมื่อเปลี่ยนสถานะเป็น "แก้ไขแล้ว" ระบบจะร่างข้อความแจ้งลูกค้าว่าแก้ไขเรียบร้อย ให้อนุมัติก่อนส่ง</p>
       </form>
     </section>
+    <section class="card">
+      <div class="card-head"><h2>กลุ่มโปรแกรมเมอร์</h2></div>
+      {% if not dev_group_set %}
+        <p class="muted small" style="margin:0">ยังไม่ได้เลือกกลุ่ม {% if user.role == 'admin' %}<a href="/settings">ตั้งค่า</a>{% endif %}</p>
+      {% else %}
+        <p class="small" style="margin:0 0 10px">
+          {% if dev_posted %}<span class="state ok">{{ icon('check', 13) }} ส่งเข้ากลุ่มแล้ว</span>
+          {% else %}<span class="state off">ยังไม่ได้ส่งเข้ากลุ่ม</span>{% endif %}
+        </p>
+        {% if user.role in ('admin', 'agent') %}
+        <form method="post" action="/tickets/{{ ticket.id }}/post-dev">
+          <button class="sm block">{{ icon('send', 13) }} {{ 'ส่งเข้ากลุ่มอีกครั้ง' if dev_posted else 'ส่งเข้ากลุ่มตอนนี้' }}</button>
+        </form>
+        {% endif %}
+        <p class="hint" style="margin:10px 0 0">โปรแกรมเมอร์ reply โพสต์ ticket ในกลุ่ม เช่น "กำลังแก้" "แก้เสร็จแล้ว" ระบบจะอัปเดตสถานะให้</p>
+      {% endif %}
+    </section>
     {% if replies %}
     <section class="card">
       <div class="card-head"><h2>ข้อความที่ตอบลูกค้า</h2></div>
       {% for r in replies %}
         <div class="mini-reply"><span class="tag rs-{{ r.status }}">{{ REPLY_STATUSES.get(r.status, r.status) }}</span>
           {% if r.kind == 'resolved' %}<span class="tag st-resolved">แจ้งแก้ไขเสร็จ</span>{% endif %}
+          {% if r.kind == 'dev_update' %}<span class="tag st-in_progress">จากโปรแกรมเมอร์</span>{% endif %}
           {% if r.status == 'pending' %}<a class="small" href="/replies">ไปอนุมัติ →</a>{% endif %}<br>{{ r.final_text }}</div>
       {% endfor %}
     </section>
