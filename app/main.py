@@ -21,6 +21,8 @@ from .config import ADMIN_PASSWORD, ADMIN_USERNAME, DATA_DIR, DISPLAY_TZ, EPHEME
 from .database import (
     DEFAULT_SETTINGS,
     Chat,
+    Guide,
+    GuideQuestion,
     Message,
     Reply,
     SessionLocal,
@@ -887,6 +889,112 @@ async def ticket_check_site(request: Request, ticket_id: int):
         else:
             flash(request, "เว็บไซต์เข้าได้ปกติ")
     return back(f"/tickets/{ticket_id}")
+
+
+# ---------------------------------------------------------------- คู่มือตอบคำถาม
+@app.get("/guides")
+async def guides_page(request: Request, q: str = ""):
+    user = current_user(request, "agent")
+    with SessionLocal() as db:
+        query = select(Guide).order_by(Guide.updated_at.desc())
+        if q.strip():
+            like = f"%{q.strip()}%"
+            query = query.where(Guide.title.ilike(like) | Guide.keywords.ilike(like) | Guide.answer.ilike(like))
+        guides = list(db.scalars(query))
+        questions = list(db.scalars(select(GuideQuestion).where(GuideQuestion.status == "open")
+                                    .order_by(GuideQuestion.created_at.desc()).limit(50)))
+        total = db.scalar(select(func.count(Guide.id)))
+        used = db.scalar(select(func.coalesce(func.sum(Guide.used_count), 0)))
+        chat_titles = {c.id: c.title for c in db.scalars(select(Chat))}
+    return render(request, "guides.html", user, guides=guides, questions=questions, q=q, total=total, used=used,
+                  chat_titles=chat_titles)
+
+
+@app.get("/guides/new")
+async def guide_new(request: Request, question_id: int = 0):
+    user = current_user(request, "agent")
+    with SessionLocal() as db:
+        question = db.get(GuideQuestion, question_id) if question_id else None
+    guide = Guide(title=question.question if question else "", keywords="", answer="")
+    return render(request, "guide_edit.html", user, guide=guide, question=question)
+
+
+def _clean_guide(title: str, keywords: str, answer: str) -> tuple[str, str, str]:
+    title, answer = title.strip()[:255], answer.strip()
+    keywords = ", ".join(k.strip() for k in keywords.replace("\n", ",").split(",") if k.strip())
+    if not title or not answer:
+        raise ValueError("ต้องมีหัวข้อและคำตอบ")
+    return title, keywords, answer
+
+
+@app.post("/guides/new")
+async def guide_create(request: Request, title: str = Form(""), keywords: str = Form(""), answer: str = Form(""),
+                       question_id: int = Form(0)):
+    user = current_user(request, "agent")
+    try:
+        title, keywords, answer = _clean_guide(title, keywords, answer)
+    except ValueError as e:
+        flash(request, str(e), "error")
+        return back("/guides/new" + (f"?question_id={question_id}" if question_id else ""))
+    with SessionLocal() as db:
+        guide = Guide(title=title, keywords=keywords, answer=answer, updated_by=user.username)
+        db.add(guide)
+        db.flush()
+        if question_id and (question := db.get(GuideQuestion, question_id)):
+            question.status, question.guide_id = "added", guide.id
+        db.commit()
+    flash(request, f"เพิ่มคู่มือ \"{title}\" แล้ว AI จะใช้ตอบลูกค้าตั้งแต่ข้อความถัดไป")
+    return back("/guides")
+
+
+@app.get("/guides/{guide_id}")
+async def guide_edit(request: Request, guide_id: int):
+    user = current_user(request, "agent")
+    with SessionLocal() as db:
+        guide = db.get(Guide, guide_id)
+    if not guide:
+        return back("/guides")
+    return render(request, "guide_edit.html", user, guide=guide, question=None)
+
+
+@app.post("/guides/{guide_id}")
+async def guide_update(request: Request, guide_id: int, title: str = Form(""), keywords: str = Form(""),
+                       answer: str = Form("")):
+    user = current_user(request, "agent")
+    try:
+        title, keywords, answer = _clean_guide(title, keywords, answer)
+    except ValueError as e:
+        flash(request, str(e), "error")
+        return back(f"/guides/{guide_id}")
+    with SessionLocal() as db:
+        guide = db.get(Guide, guide_id)
+        if guide:
+            guide.title, guide.keywords, guide.answer = title, keywords, answer
+            guide.updated_by, guide.updated_at = user.username, utcnow()
+            db.commit()
+    flash(request, "บันทึกคู่มือแล้ว")
+    return back("/guides")
+
+
+@app.post("/guides/{guide_id}/delete")
+async def guide_delete(request: Request, guide_id: int):
+    current_user(request, "agent")
+    with SessionLocal() as db:
+        if guide := db.get(Guide, guide_id):
+            db.delete(guide)
+            db.commit()
+            flash(request, f"ลบคู่มือ \"{guide.title}\" แล้ว")
+    return back("/guides")
+
+
+@app.post("/guides/questions/{question_id}/dismiss")
+async def guide_question_dismiss(request: Request, question_id: int):
+    current_user(request, "agent")
+    with SessionLocal() as db:
+        if question := db.get(GuideQuestion, question_id):
+            question.status = "dismissed"
+            db.commit()
+    return back("/guides")
 
 
 @app.get("/media/{name}")

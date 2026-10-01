@@ -189,6 +189,35 @@ class TicketAttachment(Base):
     ticket: Mapped[Ticket] = relationship(back_populates="attachments")
 
 
+class Guide(Base):
+    """คู่มือการใช้งานหลังบ้าน ให้ AI ใช้ตอบคำถามลูกค้า (ไม่ใช่การแจ้งปัญหา)"""
+
+    __tablename__ = "guides"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(String(255))  # คำถาม / หัวข้อ
+    keywords: Mapped[str] = mapped_column(Text, default="")  # คำที่ลูกค้ามักใช้ถาม คั่นด้วยจุลภาค
+    answer: Mapped[str] = mapped_column(Text, default="")  # คำตอบ / ขั้นตอน / ลิงก์คู่มือ
+    used_count: Mapped[int] = mapped_column(Integer, default=0)
+    updated_by: Mapped[str] = mapped_column(String(64), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class GuideQuestion(Base):
+    """คำถามการใช้งานที่ลูกค้าถามแต่ยังไม่มีในคู่มือ (ให้แอดมินเพิ่มคู่มือภายหลัง)"""
+
+    __tablename__ = "guide_questions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    chat_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    question: Mapped[str] = mapped_column(Text)
+    asked_by: Mapped[str] = mapped_column(String(255), default="")
+    status: Mapped[str] = mapped_column(String(16), default="open", index=True)  # open / added / dismissed
+    guide_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class Reply(Base):
     """ข้อความตอบกลับที่ AI ร่างไว้ รอแอดมินอนุมัติก่อนส่ง"""
 

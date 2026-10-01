@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon, cicon %}
+{% block title %}คู่มือตอบคำถาม{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>คู่มือตอบคำถาม</h1>
+    <p class="sub">เมื่อลูกค้าสอบถามวิธีใช้งานหลังบ้าน (ไม่ได้แจ้งปัญหา) AI จะร่างคำตอบจากคู่มือในหน้านี้ ไม่เปิด ticket และยังต้องอนุมัติก่อนส่งเสมอ</p>
+  </div>
+  <a class="btn primary" href="/guides/new">{{ icon('plus', 14) }} เพิ่มคู่มือ</a>
+</div>
+
+<div class="strip compact" style="--cols:3">
+  <div class="strip-cell"><span class="strip-ic">{{ cicon('book-open-lightbulb', 22) }}</span><span class="strip-label">คู่มือทั้งหมด</span><span class="strip-value">{{ total }}</span></div>
+  <div class="strip-cell"><span class="strip-ic {{ 'alive' if questions }}">{{ cicon('question-circle', 22) }}</span><span class="strip-label">คำถามที่ยังไม่มีในคู่มือ</span><span class="strip-value {{ 'hot' if questions }}">{{ questions | length }}</span></div>
+  <div class="strip-cell"><span class="strip-ic">{{ cicon('send', 22) }}</span><span class="strip-label">ใช้ตอบลูกค้าไปแล้ว</span><span class="strip-value">{{ used }} ครั้ง</span></div>
+</div>
+
+{% if questions %}
+<section class="panel">
+  <div class="panel-head">
+    <h2>{{ icon('alert', 16) }} คำถามที่ลูกค้าถามแต่ยังไม่มีในคู่มือ</h2>
+    <span class="count">AI ตอบลูกค้าว่าขอตรวจสอบข้อมูลก่อน · เพิ่มคู่มือเพื่อให้ตอบได้ครั้งต่อไป</span>
+  </div>
+  <div class="table-wrap">
+  <table class="grid-table">
+    <thead><tr><th class="shrink">เวลา</th><th>คำถาม</th><th class="shrink">ลูกค้า</th><th class="shrink"></th></tr></thead>
+    <tbody>
+    {% for qn in questions %}
+      <tr class="q-row">
+        <td class="when">{{ qn.created_at | localtime }}</td>
+        <td class="fill"><strong>{{ qn.question }}</strong></td>
+        <td class="nowrap small">{{ qn.asked_by or '-' }}<div class="muted">{{ chat_titles.get(qn.chat_id, qn.chat_id) }}</div></td>
+        <td class="shrink">
+          <div class="row" style="flex-wrap:nowrap">
+            <a class="btn sm primary" href="/guides/new?question_id={{ qn.id }}">{{ icon('plus', 13) }} เพิ่มเป็นคู่มือ</a>
+            <form method="post" action="/guides/questions/{{ qn.id }}/dismiss"><button class="sm ghost">ไม่ต้อง</button></form>
+          </div>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>{{ icon('note', 16) }} คู่มือ</h2>
+    <form method="get" action="/guides" class="row" style="flex-wrap:nowrap">
+      <input name="q" value="{{ q }}" placeholder="ค้นหาหัวข้อ คำค้น หรือคำตอบ" style="min-width:260px">
+      <button>ค้นหา</button>
+    </form>
+  </div>
+  <div class="table-wrap">
+  <table class="grid-table">
+    <thead><tr>
+      <th class="shrink">#</th><th>หัวข้อ / คำตอบ</th><th class="shrink">คำค้น</th>
+      <th class="shrink center">ใช้ตอบ</th><th class="shrink">แก้ไขล่าสุด</th><th class="shrink"></th>
+    </tr></thead>
+    <tbody>
+    {% for g in guides %}
+      <tr>
+        <td class="shrink muted">{{ g.id }}</td>
+        <td class="fill"><a href="/guides/{{ g.id }}"><strong>{{ g.title }}</strong></a>
+          <div class="guide-answer">{{ g.answer }}</div></td>
+        <td class="kw-cell">{% for k in (g.keywords or '').split(',') if k.strip() %}<span class="kw">{{ k.strip() }}</span>{% else %}<span class="zero">—</span>{% endfor %}</td>
+        <td class="shrink center mono">{{ g.used_count }}</td>
+        <td class="shrink small">{{ g.updated_by or '-' }}<div class="when">{{ g.updated_at | localtime }}</div></td>
+        <td class="shrink">
+          <div class="row" style="flex-wrap:nowrap">
+            <a class="btn sm" href="/guides/{{ g.id }}">{{ icon('edit', 13) }} แก้ไข</a>
+            <form method="post" action="/guides/{{ g.id }}/delete" onsubmit="return confirm('ลบคู่มือนี้?')">
+              <button class="icon-btn sm del" title="ลบคู่มือ" aria-label="ลบคู่มือ #{{ g.id }}">{{ cicon('delete', 17) }}</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+    {% else %}
+      <tr class="empty-row"><td colspan="6">{{ icon('note', 24) }}
+        <strong>{{ 'ไม่พบคู่มือที่ค้นหา' if q else 'ยังไม่มีคู่มือ' }}</strong>
+        {% if not q %}เพิ่มคำถามที่ลูกค้าถามบ่อยเกี่ยวกับการใช้งานหลังบ้าน พร้อมคำตอบหรือขั้นตอน เช่น "เพิ่มบัญชีธนาคารยังไง" "ดูรายงานยอดฝากตรงไหน"{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endblock %}

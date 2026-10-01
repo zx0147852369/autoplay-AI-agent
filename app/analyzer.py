@@ -13,7 +13,8 @@ from sqlalchemy import func, select
 from . import ai_service, dev_bridge
 from .telegram_service import STICKER_TEXT
 from .database import (
-    Chat, Message, Reply, SessionLocal, Ticket, TicketAttachment, TicketEvent, get_settings, int_setting, utcnow,
+    Chat, Guide, GuideQuestion, Message, Reply, SessionLocal, Ticket, TicketAttachment, TicketEvent, get_settings,
+    int_setting, utcnow,
 )
 from urllib.parse import urlparse
 
@@ -126,6 +127,7 @@ async def analyze(chat_id: int) -> str:
                 select(Ticket).where(Ticket.chat_id == chat_id, Ticket.status.in_(OPEN_STATUSES))
             ))
             asked_info = team_asked_info(db, chat_id, new_messages)
+            guides = list(db.scalars(select(Guide).order_by(Guide.id)))
 
         if str(chat_id) == settings.get("dev_group_id"):
             _mark_analyzed(new_messages)  # กลุ่มโปรแกรมเมอร์ไม่ใช่แชทลูกค้า
@@ -142,7 +144,7 @@ async def analyze(chat_id: int) -> str:
         try:
             result = await ai_service.analyze_chat(
                 settings, chat.title if chat else str(chat_id), history, new_messages, open_tickets,
-                rejected=[r for r, _ in rejected], chat_website=chat.website_url if chat else "",
+                rejected=[r for r, _ in rejected], chat_website=chat.website_url if chat else "", guides=guides,
             )
         except ai_service.AIError as e:
             last_error[chat_id] = str(e)
@@ -167,6 +169,8 @@ async def analyze(chat_id: int) -> str:
             if not (result.needs_reply and result.reply_text.strip()):
                 result.needs_reply, result.reply_text = True, ACK_INFO
                 result.note_for_admin = (result.note_for_admin + " · ลูกค้าส่งข้อมูลที่ขอไปแล้ว ระบบร่างคำตอบรับ").strip(" ·")
+        if result.question.strip():
+            _handle_question(chat_id, result, guides, customer_new)
         similar = next((text for text, _ in rejected if is_similar(result.reply_text, text)), None)
         if result.needs_reply and similar:
             log.info("ไม่สร้างร่างซ้ำกับที่แอดมินปฏิเสธไปแล้วในแชท %s", chat_id)
@@ -181,6 +185,33 @@ async def analyze(chat_id: int) -> str:
         if result.needs_reply:
             parts.append("สร้างร่างคำตอบแล้ว")
         return ", ".join(parts) or "ไม่ต้องตอบ / ไม่ใช่การแจ้งปัญหา"
+
+
+GUIDE_HOLD = "ขอบคุณที่สอบถามค่ะ ขอตรวจสอบข้อมูลสักครู่นะคะ แล้วจะรีบแจ้งกลับค่ะ"
+
+
+def _handle_question(chat_id: int, result: ai_service.Analysis, guides: list[Guide], customer_msgs: list[Message]) -> None:
+    """ลูกค้าถามวิธีใช้งานหลังบ้าน -> ตอบจากคู่มือ / ถ้าไม่มีในคู่มือ บันทึกคำถามให้แอดมินเพิ่มคู่มือ"""
+    question = result.question.strip()
+    guide = next((g for g in guides if g.id == result.guide_id), None) if result.answered_from_guide else None
+    with SessionLocal() as db:
+        if guide:
+            db.get(Guide, guide.id).used_count += 1
+            note = f"ตอบจากคู่มือ #{guide.id}: {guide.title}"
+            if not (result.needs_reply and result.reply_text.strip()):
+                result.needs_reply, result.reply_text = True, guide.answer
+        else:
+            since = utcnow() - timedelta(hours=24)
+            recent = db.scalars(select(GuideQuestion.question).where(
+                GuideQuestion.chat_id == chat_id, GuideQuestion.status == "open", GuideQuestion.created_at >= since))
+            if not any(is_similar(question, q) for q in recent):
+                db.add(GuideQuestion(chat_id=chat_id, question=question,
+                                     asked_by=customer_msgs[-1].sender_name if customer_msgs else ""))
+            note = "คำถามนี้ยังไม่มีในคู่มือ ตรวจคำตอบก่อนส่ง · เพิ่มคู่มือได้ที่หน้า \"คู่มือตอบคำถาม\""
+            if not (result.needs_reply and result.reply_text.strip()):
+                result.needs_reply, result.reply_text = True, GUIDE_HOLD
+        db.commit()
+    result.note_for_admin = (f"คำถามการใช้งาน: {question} · {note} · " + result.note_for_admin).strip(" ·")
 
 
 def team_asked_info(db, chat_id: int, new_messages: list[Message]) -> bool:

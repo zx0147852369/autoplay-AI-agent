@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=27">
+  <link rel="stylesheet" href="/static/style.css?v=29">
 </head>
 <body>
 {% if user %}
@@ -32,6 +32,7 @@
     {{ nav_item('/tickets', 'clipboard-task', 'Tickets', 'badge-tickets') }}
     {% if user.role in ('admin', 'agent') %}
       {{ nav_item('/chats', 'chat-multiple', 'แชทลูกค้า') }}
+      {{ nav_item('/guides', 'book-open-lightbulb', 'คู่มือตอบคำถาม') }}
     {% endif %}
     {% if user.role == 'admin' %}
       <div class="nav-label">ระบบ</div>

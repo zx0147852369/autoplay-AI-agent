@@ -2,6 +2,7 @@
 
 import base64
 import json
+import re
 import logging
 import os
 from dataclasses import dataclass
@@ -77,6 +78,7 @@ SYSTEM_INSTRUCTIONS = f"""คุณคือผู้ช่วยทีมซั
 - severity: low / medium / high / critical (critical = ลูกค้าหลายคนใช้งานไม่ได้ หรือเว็บล่มทั้งระบบ)
 - website_url: ลิงก์เว็บไซต์ที่เกี่ยวข้องกับปัญหา ใส่เฉพาะลิงก์ที่ลูกค้าพิมพ์มาจริงในบทสนทนา
   ห้ามเดาลิงก์จากชื่อแชทหรือชื่อกลุ่ม (เช่น กลุ่มชื่อ "K-Masters.com (Support)" ไม่ได้แปลว่าเว็บคือ K-Masters.com) ถ้าไม่มีให้เป็นค่าว่าง
+- คำถามการใช้งานเฉยๆ (ไม่ได้บอกว่าระบบผิดปกติ) ไม่ใช่การแจ้งปัญหา ให้ issue_category = "none" (ดูข้อ 3)
 - ถ้ามี ticket ที่เปิดอยู่เป็นปัญหาเดียวกัน ให้ใส่ existing_ticket_id เป็นเลข ticket นั้นแทนการเปิดใหม่ (0 = เปิด ticket ใหม่)
   ลูกค้าตามเรื่อง ถามความคืบหน้า หรือแจ้งอาการเดิมซ้ำ (เช่น "ยังไม่ได้เลย" "ได้หรือยัง") = ปัญหาเดิม ต้องใส่ existing_ticket_id ห้ามเปิด ticket ใหม่
   และตอบลูกค้าว่าทีมงานกำลังเร่งตรวจสอบเรื่องเดิมให้
@@ -100,10 +102,14 @@ ANALYSIS_SCHEMA = {
         "customer_name": {"type": "string"},
         "existing_ticket_id": {"type": "integer"},
         "note_for_admin": {"type": "string"},
+        "question": {"type": "string"},
+        "guide_id": {"type": "integer"},
+        "answered_from_guide": {"type": "boolean"},
     },
     "required": [
         "needs_reply", "reply_text", "reply_to_message_id", "issue_category", "issue_title",
         "issue_summary", "severity", "website_url", "customer_name", "existing_ticket_id", "note_for_admin",
+        "question", "guide_id", "answered_from_guide",
     ],
     "additionalProperties": False,
 }
@@ -122,6 +128,9 @@ class Analysis:
     customer_name: str
     existing_ticket_id: int
     note_for_admin: str
+    question: str = ""  # คำถามการใช้งานหลังบ้าน (ไม่ใช่การแจ้งปัญหา)
+    guide_id: int = 0
+    answered_from_guide: bool = False
 
     @property
     def is_issue(self) -> bool:
@@ -142,9 +151,43 @@ def is_gemini(model: str) -> bool:
     return model.startswith("gemini")
 
 
+GUIDE_RULES = """
+3) คำถามการใช้งานหลังบ้าน / คู่มือ (ลูกค้าสอบถามเฉยๆ ไม่ใช่แจ้งปัญหา)
+- เช่น ถามวิธีตั้งค่า เพิ่มบัญชี ดูรายงาน เปลี่ยนรหัส ใช้เมนูต่างๆ ในหลังบ้าน -> issue_category = "none" ไม่เปิด ticket
+- question: สรุปคำถามการใช้งานของลูกค้าสั้นๆ (ค่าว่างถ้าข้อความใหม่ไม่ใช่คำถามการใช้งาน)
+- ตอบโดยใช้ข้อมูลจาก "คู่มือการใช้งาน" ที่ให้มาเท่านั้น ใส่ guide_id เป็นเลขคู่มือที่ใช้ และ answered_from_guide=true
+  ใส่ขั้นตอน ชื่อเมนู และลิงก์จากคู่มือให้ครบถ้วนตามจริง ปรับถ้อยคำให้ตรงกับที่ลูกค้าถาม
+- ถ้าคู่มือไม่มีคำตอบ ห้ามเดาขั้นตอนหรือชื่อเมนูเอง ให้ answered_from_guide=false, guide_id=0
+  และตอบลูกค้าว่าขอตรวจสอบข้อมูลก่อนแล้วจะรีบแจ้งกลับ
+- ถ้าลูกค้าทั้งแจ้งปัญหาและถามวิธีใช้งาน ให้ทำทั้งสองอย่าง (เปิด ticket ตามปัญหา และใส่ question)
+"""
+
+
+def _guides_text(guides: list, query: str, budget: int = 24000) -> str:
+    """คู่มือที่ส่งให้ AI: ถ้ายาวเกินงบ เลือกเรื่องที่ตรงกับข้อความลูกค้ามากที่สุดก่อน"""
+    if not guides:
+        return "คู่มือการใช้งาน: ยังไม่มี (ถ้าลูกค้าถามวิธีใช้งาน ให้ตอบว่าขอตรวจสอบข้อมูลก่อน)"
+    query = (query or "").lower()
+
+    def score(g) -> int:
+        words = [w.strip().lower() for w in (g.keywords or "").replace("\n", ",").split(",") if w.strip()]
+        words += [w.lower() for w in re.split(r"[\s/·,()]+", g.title or "") if len(w) >= 2]
+        return sum(len(w) for w in words if w in query)
+
+    blocks, used = [], 0
+    for g in sorted(guides, key=lambda g: (-score(g), g.id)):
+        block = f"[คู่มือ #{g.id}] {g.title}\n" + (f"คำค้น: {g.keywords}\n" if g.keywords else "") + f"คำตอบ:\n{g.answer}"
+        if used + len(block) > budget and blocks:
+            break
+        blocks.append(block)
+        used += len(block)
+    return "คู่มือการใช้งาน (ใช้ตอบคำถามการใช้งานของลูกค้า):\n\n" + "\n---\n".join(blocks)
+
+
 def _system_text(settings: dict[str, str]) -> str:
     return (
         SYSTEM_INSTRUCTIONS
+        + GUIDE_RULES
         + "\n\n# ข้อมูลธุรกิจ\n" + settings.get("business_context", "")
         + "\n\n# ฐานความรู้ / วิธีตอบ\n" + settings.get("knowledge_base", "")
         + "\n\n# สไตล์การตอบ\n" + settings.get("reply_style", "")
@@ -378,6 +421,9 @@ def _parse_analysis(text: str) -> Analysis:
         customer_name=str(data.get("customer_name") or ""),
         existing_ticket_id=as_int(data.get("existing_ticket_id")),
         note_for_admin=str(data.get("note_for_admin") or ""),
+        question=str(data.get("question") or ""),
+        guide_id=as_int(data.get("guide_id")),
+        answered_from_guide=bool(data.get("answered_from_guide")),
     )
 
 
@@ -389,9 +435,12 @@ async def analyze_chat(
     open_tickets: list[Ticket],
     rejected: list[str] | None = None,
     chat_website: str = "",
+    guides: list | None = None,
 ) -> Analysis:
     transcript = format_transcript(chat_title, history, {m.id for m in new_messages})
+    query = " ".join(m.text or "" for m in new_messages if not m.is_outgoing)
     parts = [
+        ("text", _guides_text(guides or [], query)),
         ("text", _open_tickets_text(open_tickets)),
         *([("text", f"เว็บไซต์ของลูกค้าแชทนี้ (แอดมินตั้งไว้ เชื่อถือได้): {chat_website}")] if chat_website else []),
         *([("text", "ร่างคำตอบที่แอดมินปฏิเสธไปแล้ว ห้ามร่างเนื้อหาเดิมซ้ำ ถ้าไม่มีเรื่องใหม่จากลูกค้าให้ needs_reply=false:\n"
