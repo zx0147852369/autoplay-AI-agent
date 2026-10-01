@@ -7,30 +7,38 @@
     <h1>ภาพรวม</h1>
     <p class="sub">{{ today }}</p>
   </div>
-  {% if pending %}<a href="/replies" class="btn primary">ตรวจข้อความที่รอ ({{ pending }})</a>{% endif %}
+  {% if pending %}<a href="/replies" class="btn primary">{{ icon('inbox', 15) }} ตรวจข้อความที่รอ ({{ pending }})</a>{% endif %}
 </div>
 
-<div class="ledger">
-  <a href="/replies">
-    <span class="label">รออนุมัติ</span>
-    <span class="value {{ 'attention' if pending }}">{{ pending }}</span>
-    <span class="foot">ร่างคำตอบที่ยังไม่ได้ส่ง</span>
+<div class="strip">
+  <a class="strip-cell" href="/replies">
+    <span class="strip-ic {{ 'tone-red' if pending else 'tone-grey' }}">{{ icon('inbox', 18) }}</span>
+    <span class="strip-label">รออนุมัติ</span>
+    <span class="strip-value {{ 'hot' if pending }}">{{ pending }}</span>
   </a>
-  <a href="/tickets">
-    <span class="label">Ticket ค้าง</span>
-    <span class="value">{{ open_by_cat.values() | sum }}</span>
-    <span class="foot">เปิดใหม่ + กำลังแก้ไข</span>
+  <a class="strip-cell" href="/tickets">
+    <span class="strip-ic tone-amber">{{ icon('ticket', 18) }}</span>
+    <span class="strip-label">Ticket ค้าง</span>
+    <span class="strip-value">{{ open_by_cat.values() | sum }}</span>
   </a>
-  <a href="/chats">
-    <span class="label">แชทที่ติดตาม</span>
-    <span class="value">{{ monitored }}</span>
-    <span class="foot">กลุ่มที่ระบบอ่านข้อความ</span>
+  <a class="strip-cell" href="/chats">
+    <span class="strip-ic tone-blue">{{ icon('chat', 18) }}</span>
+    <span class="strip-label">แชทที่ติดตาม</span>
+    <span class="strip-value">{{ monitored }}</span>
   </a>
-  <a href="/telegram">
-    <span class="label">Telegram</span>
-    <span class="value text"><span class="dot {{ 'live' if connected else 'off' }}"></span>{{ 'ออนไลน์' if connected else 'ไม่ได้เชื่อมต่อ' }}</span>
-    <span class="foot">{{ account.me_name or account.phone or 'ยังไม่ได้ตั้งค่าบัญชี' }}</span>
+  <a class="strip-cell" href="/telegram">
+    <span class="strip-ic {{ 'tone-green' if connected else 'tone-red' }}">{{ icon('send', 18) }}</span>
+    <span class="strip-label">Telegram</span>
+    <span class="strip-value text"><span class="dot {{ 'live' if connected else 'off' }}"></span>{{ 'ออนไลน์' if connected else 'ไม่ได้เชื่อมต่อ' }}</span>
   </a>
+</div>
+
+<p class="section-label">{{ icon('clock', 13) }} วันนี้</p>
+<div class="strip compact">
+  <div class="strip-cell"><span class="strip-ic tone-grey">{{ icon('chat', 16) }}</span><span class="strip-label">ข้อความลูกค้าเข้า</span><span class="strip-value">{{ today_counts.messages }}</span></div>
+  <div class="strip-cell"><span class="strip-ic tone-grey">{{ icon('plus', 16) }}</span><span class="strip-label">Ticket เปิดใหม่</span><span class="strip-value">{{ today_counts.tickets }}</span></div>
+  <div class="strip-cell"><span class="strip-ic tone-grey">{{ icon('check', 16) }}</span><span class="strip-label">แก้ไขเสร็จ</span><span class="strip-value">{{ today_counts.resolved }}</span></div>
+  <div class="strip-cell"><span class="strip-ic tone-grey">{{ icon('send', 16) }}</span><span class="strip-label">คำตอบที่ส่ง</span><span class="strip-value">{{ today_counts.sent }}</span></div>
 </div>
 
 {% if ai_errors %}
@@ -40,42 +48,110 @@
 </div>
 {% endif %}
 
+{% set done = setup_done %}
+{% if done < setup | length %}
+<section class="panel">
+  <div class="panel-head">
+    <h2>{{ icon('check-circle', 16) }} เริ่มต้นใช้งาน</h2>
+    <span class="progress">เสร็จแล้ว {{ done }}/{{ setup | length }}</span>
+  </div>
+  <table class="grid-table checklist">
+    {% for label, ok, href in setup %}
+      <tr class="{{ 'is-done' if ok }}">
+        <td>{% if ok %}<span class="done">{{ icon('check-circle', 18) }}</span>{% else %}<span class="todo">{{ icon('circle', 18) }}</span>{% endif %}</td>
+        <td class="task">{{ loop.index }}. {{ label }}</td>
+        <td class="shrink">{% if ok %}<span class="state ok">เรียบร้อย</span>{% else %}<a class="btn sm" href="{{ href }}">ไปตั้งค่า {{ icon('arrow-right', 13) }}</a>{% endif %}</td>
+      </tr>
+    {% endfor %}
+  </table>
+</section>
+{% endif %}
+
 <div class="grid-2">
-  <section class="card">
-    <div class="card-head"><h2>ปัญหาค้างตามประเภท</h2></div>
-    {% if open_by_cat %}
-      {% set top = open_by_cat.values() | max %}
-      <table class="cat-table">
-        {% for cat, n in open_by_cat.items() | sort(attribute=1, reverse=True) %}
-          <tr>
-            <td><a href="/tickets?category={{ cat }}">{{ CATEGORIES.get(cat, cat) }}</a></td>
-            <td class="meter"><div class="meter-track"><span class="meter-fill" style="width: {{ (n / top * 100) | round }}%"></span></div></td>
-            <td class="num">{{ n }}</td>
-          </tr>
-        {% endfor %}
-      </table>
-    {% else %}
-      <p class="muted" style="margin:0">ไม่มีปัญหาค้าง</p>
-    {% endif %}
+  <section class="panel">
+    <div class="panel-head">
+      <h2>{{ icon('inbox', 16) }} รออนุมัติล่าสุด</h2>
+      <a href="/replies" class="small">ดูทั้งหมด</a>
+    </div>
+    <div class="table-wrap">
+    <table class="grid-table">
+      <thead><tr><th class="shrink">เวลา</th><th>แชท</th><th>ร่างคำตอบ</th></tr></thead>
+      <tbody>
+      {% for r in pending_list %}
+        <tr onclick="location.href='/replies'" style="cursor:pointer">
+          <td class="when">{{ r.created_at | localtime }}</td>
+          <td class="nowrap">{{ chat_titles.get(r.chat_id, r.chat_id) }}</td>
+          <td class="fill"><span class="truncate">{{ r.final_text }}</span></td>
+        </tr>
+      {% else %}
+        <tr class="empty-row"><td colspan="3">{{ icon('inbox', 22) }}<strong>ไม่มีข้อความรออนุมัติ</strong>ร่างคำตอบใหม่จะแสดงที่นี่</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
   </section>
 
-  <section class="card">
-    <div class="card-head"><h2>Ticket ล่าสุด</h2><a href="/tickets" class="small">ดูทั้งหมด</a></div>
-    {% if recent %}
-      <div class="list">
-        {% for t in recent %}
-          <a class="list-item" href="/tickets/{{ t.id }}">
-            <span class="id">#{{ t.id }}</span>
-            <span class="li-main"><span class="li-title">{{ t.title }}</span>
-              <span class="li-sub">{{ chat_titles.get(t.chat_id, '') }} · {{ t.created_at | localtime }}</span></span>
-            <span class="tag sev-{{ t.severity }}">{{ SEVERITY_LABELS[t.severity] }}</span>
-            <span class="tag st-{{ t.status }}">{{ TICKET_STATUSES[t.status] }}</span>
-          </a>
-        {% endfor %}
-      </div>
-    {% else %}
-      <p class="muted" style="margin:0">ยังไม่มี ticket</p>
-    {% endif %}
+  <section class="panel">
+    <div class="panel-head"><h2>{{ icon('activity', 16) }} สถานะระบบ</h2></div>
+    <table class="grid-table">
+      <thead><tr><th>รายการ</th><th class="shrink">สถานะ</th><th>รายละเอียด</th></tr></thead>
+      <tbody>
+      {% for label, ok, detail in system %}
+        <tr>
+          <td class="nowrap">{{ label }}</td>
+          <td class="shrink"><span class="state {{ 'ok' if ok else 'bad' }}"><span class="dot {{ 'live' if ok else 'off' }}"></span>{{ 'ปกติ' if ok else 'ต้องแก้ไข' }}</span></td>
+          <td class="small">{{ detail }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+
+<div class="grid-2">
+  <section class="panel">
+    <div class="panel-head">
+      <h2>{{ icon('ticket', 16) }} Ticket ล่าสุด</h2>
+      <a href="/tickets?status=all" class="small">ดูทั้งหมด</a>
+    </div>
+    <div class="table-wrap">
+    <table class="grid-table">
+      <thead><tr><th class="shrink">#</th><th>เรื่อง</th><th class="shrink">ความรุนแรง</th><th class="shrink">สถานะ</th></tr></thead>
+      <tbody>
+      {% for t in recent %}
+        <tr onclick="location.href='/tickets/{{ t.id }}'" style="cursor:pointer">
+          <td class="id">{{ t.id }}</td>
+          <td><a class="title-link" href="/tickets/{{ t.id }}">{{ t.title }}</a><div class="muted small">{{ chat_titles.get(t.chat_id, '') }} · {{ t.created_at | localtime }}</div></td>
+          <td class="shrink"><span class="tag sev-{{ t.severity }}">{{ SEVERITY_LABELS[t.severity] }}</span></td>
+          <td class="shrink"><span class="tag st-{{ t.status }}">{{ TICKET_STATUSES[t.status] }}</span></td>
+        </tr>
+      {% else %}
+        <tr class="empty-row"><td colspan="4">{{ icon('ticket', 22) }}<strong>ยังไม่มี ticket</strong>เมื่อลูกค้าแจ้งปัญหา ระบบจะเปิด ticket ให้อัตโนมัติ</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>{{ icon('alert', 16) }} ปัญหาค้างตามประเภท</h2></div>
+    {% set top = (open_by_cat.values() | max) if open_by_cat else 1 %}
+    <table class="grid-table">
+      <thead><tr><th>ประเภท</th><th class="shrink center">จำนวน</th><th>สัดส่วน</th></tr></thead>
+      <tbody>
+      {% for cat, label in CATEGORIES.items() if cat != 'none' %}
+        {% set n = open_by_cat.get(cat, 0) %}
+        <tr>
+          <td>{% if n %}<a href="/tickets?category={{ cat }}">{{ label }}</a>{% else %}<span class="muted">{{ label }}</span>{% endif %}</td>
+          <td class="num center {{ 'zero' if not n }}">{{ n }}</td>
+          <td><div class="mini-bar"><span style="width: {{ (n / top * 100) | round }}%"></span></div></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <div class="panel-foot">
+      {% for k, v in TICKET_STATUSES.items() %}<span>{{ v }} <b>{{ by_status.get(k, 0) }}</b></span>{% endfor %}
+    </div>
   </section>
 </div>
 {% endblock %}

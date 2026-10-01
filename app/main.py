@@ -214,22 +214,68 @@ async def logout(request: Request):
 
 
 # ---------------------------------------------------------------- dashboard
+def local_day_start_utc():
+    """เวลาเริ่มต้นของ "วันนี้" ตามเวลาไทย แปลงเป็น UTC (naive) สำหรับค้นในฐานข้อมูล"""
+    now_local = utcnow().replace(tzinfo=timezone.utc).astimezone(DISPLAY_TZ)
+    start = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    return start.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def model_key_ready(model: str) -> bool:
+    if ai_service.is_gemini(model):
+        return bool(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"))
+    return bool(os.getenv("ANTHROPIC_API_KEY"))
+
+
 @app.get("/")
 async def dashboard(request: Request):
     user = current_user(request, "agent")
+    day = local_day_start_utc()
     with SessionLocal() as db:
+        settings = get_settings(db)
         account = db.get(TelegramAccount, 1)
         pending = db.scalar(select(func.count(Reply.id)).where(Reply.status == "pending"))
         open_by_cat = dict(db.execute(
             select(Ticket.category, func.count(Ticket.id))
             .where(Ticket.status.in_(analyzer.OPEN_STATUSES)).group_by(Ticket.category)
         ).all())
-        recent = list(db.scalars(select(Ticket).order_by(Ticket.created_at.desc()).limit(8)))
+        by_status = dict(db.execute(select(Ticket.status, func.count(Ticket.id)).group_by(Ticket.status)).all())
+        recent = list(db.scalars(select(Ticket).order_by(Ticket.created_at.desc()).limit(6)))
+        pending_list = list(db.scalars(
+            select(Reply).where(Reply.status == "pending").order_by(Reply.created_at.desc()).limit(5)))
         monitored = db.scalar(select(func.count(Chat.id)).where(Chat.monitored))
         chat_titles = {c.id: c.title for c in db.scalars(select(Chat))}
+        today = {
+            "messages": db.scalar(select(func.count(Message.id))
+                                  .where(Message.date >= day, Message.is_outgoing.is_(False))),
+            "tickets": db.scalar(select(func.count(Ticket.id)).where(Ticket.created_at >= day)),
+            "resolved": db.scalar(select(func.count(Ticket.id))
+                                  .where(Ticket.updated_at >= day, Ticket.status.in_(("resolved", "closed")))),
+            "sent": db.scalar(select(func.count(Reply.id))
+                              .where(Reply.status == "sent", Reply.decided_at >= day)),
+        }
+    model = settings.get("ai_model", "")
+    model_label = {**ai_service.GEMINI_MODELS, **ai_service.CLAUDE_MODELS}.get(model, model)
+    setup = [
+        ("เชื่อมต่อบัญชี Telegram", telegram.connected, "/telegram"),
+        ("เลือกแชทลูกค้าที่จะติดตาม", bool(monitored), "/chats"),
+        ("ใส่ API key ของโมเดล AI", model_key_ready(model), "/settings"),
+        ("กรอกข้อมูลธุรกิจและคำตอบมาตรฐาน",
+         settings.get("knowledge_base") != DEFAULT_SETTINGS["knowledge_base"], "/settings"),
+    ]
+    system = [
+        ("Telegram", telegram.connected, account.me_name or "ยังไม่ได้เชื่อมต่อ"),
+        ("โมเดล AI", model_key_ready(model), model_label + ("" if model_key_ready(model) else " · ยังไม่มี API key")),
+        ("การเก็บข้อมูล", not EPHEMERAL_STORAGE, "ถาวร (Volume)" if not EPHEMERAL_STORAGE else "ชั่วคราว หายเมื่อ deploy"),
+        ("ร่างคำตอบอัตโนมัติ", settings.get("auto_draft") == "1", "เปิด" if settings.get("auto_draft") == "1" else "ปิด"),
+        ("เปิด ticket อัตโนมัติ", settings.get("auto_ticket") == "1", "เปิด" if settings.get("auto_ticket") == "1" else "ปิด"),
+        ("ตรวจเว็บไซต์อัตโนมัติ", settings.get("site_check") == "1", "เปิด" if settings.get("site_check") == "1" else "ปิด"),
+    ]
     return render(request, "dashboard.html", user, account=account, pending=pending, open_by_cat=open_by_cat,
-                  recent=recent, monitored=monitored, chat_titles=chat_titles,
-                  ai_errors=analyzer.last_error, connected=telegram.connected, today=thai_today())
+                  by_status=by_status, recent=recent, pending_list=pending_list, monitored=monitored,
+                  chat_titles=chat_titles, ai_errors=analyzer.last_error, connected=telegram.connected,
+                  today=thai_today(), today_counts=today, setup=setup, system=system,
+                  setup_done=sum(1 for item in setup if item[1]))
 
 
 @app.get("/api/badge")
@@ -308,11 +354,28 @@ async def telegram_logout(request: Request):
 @app.get("/chats")
 async def chats_page(request: Request):
     user = current_user(request, "agent")
+    day = local_day_start_utc()
     with SessionLocal() as db:
         chats = list(db.scalars(select(Chat).order_by(Chat.monitored.desc(), Chat.title)))
         counts = dict(db.execute(select(Message.chat_id, func.count(Message.id)).group_by(Message.chat_id)).all())
-    return render(request, "chats.html", user, chats=chats, counts=counts, connected=telegram.connected,
-                  ai_errors=analyzer.last_error)
+        today_counts = dict(db.execute(
+            select(Message.chat_id, func.count(Message.id))
+            .where(Message.date >= day, Message.is_outgoing.is_(False)).group_by(Message.chat_id)).all())
+        last_at = dict(db.execute(select(Message.chat_id, func.max(Message.date)).group_by(Message.chat_id)).all())
+        open_tickets = dict(db.execute(
+            select(Ticket.chat_id, func.count(Ticket.id))
+            .where(Ticket.status.in_(analyzer.OPEN_STATUSES)).group_by(Ticket.chat_id)).all())
+        pending = dict(db.execute(
+            select(Reply.chat_id, func.count(Reply.id)).where(Reply.status == "pending").group_by(Reply.chat_id)).all())
+    summary = {
+        "total": len(chats),
+        "monitored": sum(1 for c in chats if c.monitored),
+        "today": sum(today_counts.values()),
+        "open_tickets": sum(open_tickets.values()),
+    }
+    return render(request, "chats.html", user, chats=chats, counts=counts, today_counts=today_counts,
+                  last_at=last_at, open_tickets=open_tickets, pending=pending, summary=summary,
+                  connected=telegram.connected, ai_errors=analyzer.last_error)
 
 
 @app.post("/chats/sync")
@@ -374,6 +437,7 @@ async def replies_page(request: Request, status: str = "pending"):
         if status != "all":
             query = query.where(Reply.status == status)
         replies = list(db.scalars(query))
+        status_counts = dict(db.execute(select(Reply.status, func.count(Reply.id)).group_by(Reply.status)).all())
         chat_titles = {c.id: c.title for c in db.scalars(select(Chat))}
         context = {}
         for r in replies:
@@ -382,8 +446,9 @@ async def replies_page(request: Request, status: str = "pending"):
                     select(Message).where(Message.chat_id == r.chat_id)
                     .order_by(Message.date.desc()).limit(8)
                 ))[::-1]
+    status_counts["all"] = sum(status_counts.values())
     return render(request, "replies.html", user, replies=replies, status=status, chat_titles=chat_titles,
-                  context=context)
+                  context=context, status_counts=status_counts)
 
 
 def _load_pending(reply_id: int) -> Reply | None:
@@ -468,8 +533,9 @@ async def replies_regenerate(request: Request, reply_id: int, instruction: str =
 
 # ---------------------------------------------------------------- tickets
 @app.get("/tickets")
-async def tickets_page(request: Request, status: str = "active", category: str = ""):
+async def tickets_page(request: Request, status: str = "active", category: str = "", q: str = ""):
     user = current_user(request, "programmer")
+    q = q.strip()
     with SessionLocal() as db:
         query = select(Ticket).order_by(Ticket.created_at.desc()).limit(300)
         if status == "active":
@@ -478,11 +544,20 @@ async def tickets_page(request: Request, status: str = "active", category: str =
             query = query.where(Ticket.status == status)
         if category:
             query = query.where(Ticket.category == category)
+        if q:
+            like = f"%{q}%"
+            query = query.where(
+                Ticket.title.ilike(like) | Ticket.customer_name.ilike(like) | Ticket.summary.ilike(like)
+                | Ticket.website_url.ilike(like) | (Ticket.id == (int(q.lstrip("#")) if q.lstrip("#").isdigit() else -1))
+            )
         tickets = list(db.scalars(query))
+        status_counts = dict(db.execute(select(Ticket.status, func.count(Ticket.id)).group_by(Ticket.status)).all())
         chat_titles = {c.id: c.title for c in db.scalars(select(Chat))}
         users = {u.id: u.username for u in db.scalars(select(User))}
-    return render(request, "tickets.html", user, tickets=tickets, status=status, category=category,
-                  chat_titles=chat_titles, users=users)
+    status_counts["active"] = sum(status_counts.get(k, 0) for k in analyzer.OPEN_STATUSES)
+    status_counts["all"] = sum(v for k, v in status_counts.items() if k in TICKET_STATUSES)
+    return render(request, "tickets.html", user, tickets=tickets, status=status, category=category, q=q,
+                  chat_titles=chat_titles, users=users, status_counts=status_counts)
 
 
 @app.get("/tickets/{ticket_id}")

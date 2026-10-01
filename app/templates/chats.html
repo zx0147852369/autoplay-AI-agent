@@ -8,42 +8,65 @@
     <p class="sub">เปิดติดตามเฉพาะกลุ่มลูกค้า ระบบจะอ่านข้อความเฉพาะแชทที่เปิดไว้</p>
   </div>
   {% if user.role == 'admin' %}
-  <form method="post" action="/chats/sync"><button {{ '' if connected else 'disabled' }}>{{ icon('refresh', 14) }} ดึงรายชื่อแชทจาก Telegram</button></form>
+  <form method="post" action="/chats/sync"><button class="primary" {{ '' if connected else 'disabled' }}>{{ icon('refresh', 14) }} ดึงรายชื่อแชทจาก Telegram</button></form>
   {% endif %}
 </div>
 
-{% if chats %}
-<div class="card flush">
+<div class="strip compact">
+  <div class="strip-cell"><span class="strip-ic tone-grey">{{ icon('chat', 16) }}</span><span class="strip-label">แชททั้งหมด</span><span class="strip-value">{{ summary.total }}</span></div>
+  <div class="strip-cell"><span class="strip-ic tone-green">{{ icon('check', 16) }}</span><span class="strip-label">ติดตามอยู่</span><span class="strip-value">{{ summary.monitored }}</span></div>
+  <div class="strip-cell"><span class="strip-ic tone-blue">{{ icon('clock', 16) }}</span><span class="strip-label">ข้อความลูกค้าวันนี้</span><span class="strip-value">{{ summary.today }}</span></div>
+  <div class="strip-cell"><span class="strip-ic tone-amber">{{ icon('ticket', 16) }}</span><span class="strip-label">Ticket ค้าง</span><span class="strip-value">{{ summary.open_tickets }}</span></div>
+</div>
+
+{% if not connected %}
+  <div class="note warn" style="margin-bottom:16px">ยังไม่ได้เชื่อมต่อ Telegram ระบบจะยังไม่รับข้อความใหม่ {% if user.role == 'admin' %}<a href="/telegram">ไปเชื่อมต่อบัญชี</a>{% endif %}</div>
+{% endif %}
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>{{ icon('chat', 16) }} รายชื่อแชท</h2>
+    <span class="count">{{ summary.monitored }} จาก {{ summary.total }} แชทที่ติดตาม</span>
+  </div>
   <div class="table-wrap">
-  <table>
-    <thead><tr><th>แชท</th><th>ประเภท</th><th class="num">ข้อความ</th><th>ติดตาม</th><th></th></tr></thead>
+  <table class="grid-table">
+    <thead><tr>
+      <th>แชท</th><th class="shrink">ประเภท</th><th class="shrink">ติดตาม</th>
+      <th class="shrink center">วันนี้</th><th class="shrink center">ทั้งหมด</th><th class="shrink">ข้อความล่าสุด</th>
+      <th class="shrink center">Ticket ค้าง</th><th class="shrink center">รออนุมัติ</th><th class="shrink"></th>
+    </tr></thead>
     <tbody>
     {% for c in chats %}
       <tr class="{{ '' if c.monitored else 'dim' }}">
         <td><a class="title-link" href="/chats/{{ c.id }}">{{ c.title }}</a>
           {% if ai_errors.get(c.id) %}<div class="small error-text">{{ ai_errors[c.id] }}</div>{% endif %}</td>
-        <td class="small">{{ {'group': 'กลุ่ม', 'channel': 'แชนแนล', 'user': 'แชทส่วนตัว'}[c.kind] }}</td>
-        <td class="num">{{ counts.get(c.id, 0) }}</td>
-        <td>
+        <td class="shrink small">{{ {'group': 'กลุ่ม', 'channel': 'แชนแนล', 'user': 'แชทส่วนตัว'}[c.kind] }}</td>
+        <td class="shrink">
           {% if user.role == 'admin' %}
           <form method="post" action="/chats/{{ c.id }}/toggle">
             <button class="switch {{ 'on' if c.monitored }}" title="เปิด/ปิดการติดตาม"><span class="track"></span>{{ 'เปิด' if c.monitored else 'ปิด' }}</button>
           </form>
-          {% else %}{{ 'เปิด' if c.monitored else 'ปิด' }}{% endif %}
+          {% else %}<span class="state {{ 'ok' if c.monitored else 'off' }}">{{ 'เปิด' if c.monitored else 'ปิด' }}</span>{% endif %}
         </td>
-        <td class="num">{% if c.monitored %}
+        {% set n_today = today_counts.get(c.id, 0) %}{% set n_all = counts.get(c.id, 0) %}
+        {% set n_open = open_tickets.get(c.id, 0) %}{% set n_pending = pending.get(c.id, 0) %}
+        <td class="num center {{ 'zero' if not n_today }}">{{ n_today }}</td>
+        <td class="num center {{ 'zero' if not n_all }}">{{ n_all }}</td>
+        <td class="when">{{ last_at[c.id] | localtime if last_at.get(c.id) else '—' }}</td>
+        <td class="num center">{% if n_open %}<a href="/tickets" class="tag st-open">{{ n_open }}</a>{% else %}<span class="zero">0</span>{% endif %}</td>
+        <td class="num center">{% if n_pending %}<a href="/replies" class="tag rs-pending">{{ n_pending }}</a>{% else %}<span class="zero">0</span>{% endif %}</td>
+        <td class="shrink">{% if c.monitored %}
           <form method="post" action="/chats/{{ c.id }}/analyze"><button class="sm">วิเคราะห์ตอนนี้</button></form>
         {% endif %}</td>
       </tr>
+    {% else %}
+      <tr class="empty-row"><td colspan="9">{{ icon('chat', 24) }}<strong>ยังไม่มีรายชื่อแชท</strong>
+        {% if not connected %}<a href="/telegram">เชื่อมต่อบัญชี Telegram</a> ก่อน แล้วกด "ดึงรายชื่อแชทจาก Telegram"
+        {% else %}กด "ดึงรายชื่อแชทจาก Telegram" ด้านบน แล้วเปิดติดตามเฉพาะกลุ่มลูกค้า{% endif %}
+      </td></tr>
     {% endfor %}
     </tbody>
   </table>
   </div>
-</div>
-{% else %}
-  <div class="card empty">
-    <strong>ยังไม่มีรายชื่อแชท</strong>
-    {% if connected %}กด "ดึงรายชื่อแชทจาก Telegram" ด้านบน{% else %}<a href="/telegram">เชื่อมต่อบัญชี Telegram</a> ก่อน แล้วค่อยดึงรายชื่อแชท{% endif %}
-  </div>
-{% endif %}
+</section>
 {% endblock %}
