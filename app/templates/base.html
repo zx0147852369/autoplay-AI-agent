@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=44">
+  <link rel="stylesheet" href="/static/style.css?v=45">
 </head>
 <body>
 {% if user %}
@@ -47,6 +47,7 @@
       <div class="nav-label">ระบบ</div>
       {{ nav_item('/telegram', 'telegram', 'บัญชี Telegram') }}
       {{ nav_item('/settings', 'settings', 'ตั้งค่า') }}
+      {{ nav_item('/system', 'gauge', 'ทรัพยากรเครื่อง') }}
     {% endif %}
   </nav>
   {% if quota_info and quota_info.is_gemini and quota_info.current %}

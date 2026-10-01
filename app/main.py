@@ -403,13 +403,19 @@ async def dashboard(request: Request):
                   by_status=by_status, recent=recent, pending_list=pending_list, monitored=monitored,
                   chat_titles=chat_titles, ai_errors=analyzer.last_error, connected=telegram.connected,
                   today=thai_today(), today_counts=today, setup=setup, system=system,
-                  quota_info=quota.snapshot(settings), sysinfo=sysinfo.snapshot(),
+                  quota_info=quota.snapshot(settings),
                   setup_done=sum(1 for item in setup if item[1]))
+
+
+@app.get("/system")
+async def system_page(request: Request):
+    user = current_user(request, "admin")
+    return render(request, "system.html", user, sysinfo=sysinfo.snapshot())
 
 
 @app.get("/api/sysinfo")
 async def api_sysinfo(request: Request):
-    current_user(request, "agent")
+    current_user(request, "admin")
     return JSONResponse(sysinfo.snapshot())
 
 
