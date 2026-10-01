@@ -66,6 +66,10 @@
         <label class="field">ชื่อผู้ใช้ Telegram ของโปรแกรมเมอร์
           <input name="dev_usernames" value="{{ settings.dev_usernames }}" placeholder="yuopa9, dev2">
           <span class="hint">คั่นด้วยเครื่องหมายจุลภาค ไม่ต้องใส่ @ ระบบจะอ่านเฉพาะข้อความจากคนเหล่านี้</span></label>
+        <label class="field">ทีมงานที่ดูแลเรื่องเชื่อมบัญชีธนาคาร
+          <input name="bank_usernames" value="{{ settings.bank_usernames }}" placeholder="bank_admin1, bank_admin2">
+          <span class="hint">เรื่องเชื่อมบัญชี เช่น ขอเชื่อม SCB LINE Connect ใหม่ / SCB Connect ไม่ออโต้ จะส่งเข้ากลุ่มเดิมพร้อมแท็กคนเหล่านี้
+            และระบบจะอ่านคำตอบของคนเหล่านี้เพื่ออัปเดตสถานะ เหมือนโปรแกรมเมอร์ · คั่นด้วยจุลภาค ไม่ต้องใส่ @</span></label>
         <div>
           <label class="check-row"><input type="checkbox" name="dev_forward" {{ 'checked' if settings.dev_forward == '1' }}>
             <span>ส่ง ticket ใหม่เข้ากลุ่ม<span class="hint">พร้อมรูปจากลูกค้า และข้อมูลเพิ่มเติมที่ลูกค้าส่งตามมา</span></span></label>

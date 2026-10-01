@@ -241,6 +241,7 @@ DEFAULT_SETTINGS = {
     # กลุ่มโปรแกรมเมอร์ (เช่น Autopay Support): ส่ง ticket เข้ากลุ่ม และอ่านข้อความโปรแกรมเมอร์
     "dev_group_id": "",
     "dev_usernames": "yuopa9",
+    "bank_usernames": "",  # ทีมงานที่ดูแลเรื่องเชื่อมบัญชีธนาคาร (แท็กในกลุ่มแทนโปรแกรมเมอร์)
     "staff_usernames": "",  # ทีมงานคนอื่นในกลุ่มลูกค้า คั่นด้วยจุลภาค
     "ignore_usernames": "nsbmw_prod_bot",  # บัญชีที่ไม่รับข้อความเลย คั่นด้วยจุลภาค
     "ignore_bots": "1",  # ไม่รับข้อความจากบอท Telegram ทุกตัว

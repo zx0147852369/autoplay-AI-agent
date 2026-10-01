@@ -45,7 +45,8 @@ def configure() -> None:
     """โหลดการตั้งค่ากลุ่มโปรแกรมเมอร์ให้ telegram_service"""
     with SessionLocal() as db:
         settings = get_settings(db)
-    telegram.set_dev(settings.get("dev_group_id"), settings.get("dev_usernames", ""))
+    telegram.set_dev(settings.get("dev_group_id"),
+                     settings.get("dev_usernames", "") + "," + settings.get("bank_usernames", ""))
     telegram.set_staff(settings.get("staff_usernames", ""))
     telegram.set_ignore(settings.get("ignore_usernames", ""), settings.get("ignore_bots") == "1")
     removed = telegram.purge_ignored()
@@ -176,9 +177,29 @@ def _save_links(ticket_id: int, chat_id: int, message_ids: list[int]) -> None:
         db.commit()
 
 
+BANK_CATEGORIES = ("bank_connect",)
+
+
+def parse_usernames(text: str) -> list[str]:
+    return [u.strip().lstrip("@") for u in (text or "").replace("\n", ",").split(",") if u.strip()]
+
+
+def handler_mentions(category: str) -> str:
+    """เรื่องเชื่อมบัญชีธนาคาร -> แท็กทีมงานฝ่ายเชื่อมบัญชีแทนโปรแกรมเมอร์"""
+    if category not in BANK_CATEGORIES:
+        return ""
+    with SessionLocal() as db:
+        users = parse_usernames(get_settings(db).get("bank_usernames", ""))
+    return " ".join(f"@{u}" for u in users)
+
+
 def format_ticket(ticket: Ticket, chat_title: str) -> str:
     lines = [
         f"Ticket #{ticket.id} · {ai_service.CATEGORIES.get(ticket.category, ticket.category)}",
+    ]
+    if mentions := handler_mentions(ticket.category):
+        lines.append(f"ฝากทีมเชื่อมบัญชีดำเนินการ: {mentions}")
+    lines += [
         f"ความรุนแรง: {SEVERITY_TH.get(ticket.severity, ticket.severity)}",
         f"ลูกค้า: {ticket.customer_name or '-'} · แชท: {chat_title}",
     ]
