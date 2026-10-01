@@ -22,6 +22,7 @@
   </section>
 
   <div>
+    {% include "_sound_card.html" %}
     <section class="card">
       <div class="card-head"><h2>ทำงานอัตโนมัติ</h2></div>
       <label class="check-row"><input type="checkbox" name="auto_draft" {{ 'checked' if settings.auto_draft == '1' }}>
@@ -161,4 +162,7 @@
   </form>
   <p class="hint" style="margin:12px 0 0">ผู้ดูแลระบบ: ทุกเมนู · แอดมินตอบแชท: อนุมัติข้อความและดู ticket · โปรแกรมเมอร์: ticket อย่างเดียว</p>
 </section>
+{% endblock %}
+{% block scripts %}
+{% include "_sound_script.html" %}
 {% endblock %}

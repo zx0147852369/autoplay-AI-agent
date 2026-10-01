@@ -750,3 +750,5 @@ img.avatar.logo { object-fit: cover; background: #fff; border: 1px solid var(--l
 .account-grid { align-items: start; }
 .range { width: 100%; accent-color: var(--pine); padding: 0; border: 0; background: none; box-shadow: none; }
 @media (max-width: 1000px) { .account-grid { grid-template-columns: 1fr; } }
+.account-single { max-width: 480px; }
+
