@@ -14,7 +14,7 @@
     <img class="avatar lg logo" src="/static/brand/avatar.png" width="44" height="44" alt="">
     <div class="grow">
       <strong>{{ account.me_name }}</strong>
-      <div class="muted small"><span class="mono">{{ account.phone }}</span> · <span class="dot live"></span> ออนไลน์</div>
+      <div class="muted small"><span class="mono" title="ซ่อนเบอร์โทรไว้เพื่อความเป็นส่วนตัว">{{ account.phone | mask_phone }}</span> · <span class="dot live"></span> ออนไลน์</div>
     </div>
     <a class="btn" href="/chats">เลือกแชทที่จะติดตาม</a>
     <form method="post" action="/telegram/logout" data-confirm-title="ออกจากระบบ Telegram?"

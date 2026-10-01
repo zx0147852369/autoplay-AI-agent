@@ -177,6 +177,19 @@ def _linkify(text: str) -> Markup:
 
 templates.env.filters["linkify"] = _linkify
 
+
+def _mask_phone(phone: str) -> str:
+    """ซ่อนเบอร์โทรตรงกลาง เช่น +66633717388 -> +66 ••••• 388"""
+    phone = (phone or "").strip()
+    digits = phone.lstrip("+")
+    if len(digits) < 6:
+        return "•" * len(phone)
+    prefix = ("+" if phone.startswith("+") else "") + digits[:2]
+    return f"{prefix} {'•' * (len(digits) - 5)} {digits[-3:]}"
+
+
+templates.env.filters["mask_phone"] = _mask_phone
+
 TH_DAYS = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"]
 TH_MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."]
 NAME_COLORS = ["#0b7d52", "#1d4ed8", "#a15c07", "#9d174d", "#6d28d9", "#0e7490", "#b42318", "#4d7c0f"]
