@@ -286,7 +286,7 @@ async def _save_ticket(chat_id: int, result: ai_service.Analysis, new_messages: 
     # แจ้งกลุ่มโปรแกรมเมอร์: ticket ใหม่ -> โพสต์รายละเอียด, ticket เดิม -> ส่งข้อมูลเพิ่มจากลูกค้า
     try:
         if created:
-            await dev_bridge.post_ticket(ticket_id)
+            await dev_bridge.queue_ticket(ticket_id)
         else:
             await dev_bridge.post_customer_update(ticket_id, customer_msgs)
     except Exception:  # noqa: BLE001

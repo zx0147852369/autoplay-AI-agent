@@ -23,6 +23,48 @@
 </nav>
 
 {% if status == 'pending' %}
+  {% for item in dev_queue %}
+  {% set t = item.ticket %}
+  <article class="card reply dev-approval">
+    <header class="reply-head">
+      <span class="who">Ticket #{{ t.id }} · {{ t.title }}</span>
+      <span class="when">{{ t.created_at | localtime }}</span>
+      <a class="tag" href="/tickets/{{ t.id }}">ดู ticket</a>
+      <span class="tag st-in_progress">ส่งเข้า {{ dev_group_title }}</span>
+    </header>
+    <div class="reply-body">
+      <div>
+        <p class="section-title">ข้อมูล ticket</p>
+        <dl class="facts small">
+          <dt>ลูกค้า</dt><dd>{{ t.customer_name or '-' }}</dd>
+          <dt>แชท</dt><dd>{{ chat_titles.get(t.chat_id, t.chat_id) }}</dd>
+          <dt>ความรุนแรง</dt><dd><span class="tag sev-{{ t.severity }}">{{ SEVERITY_LABELS[t.severity] }}</span></dd>
+        </dl>
+        {% if item.photos %}
+          <p class="section-title">รูปที่จะแนบ ({{ item.photos | length }})</p>
+          <div class="tl-pics">{% for p in item.photos %}<a href="/media/{{ p }}" target="_blank"><img src="/media/{{ p }}" alt="รูปจากลูกค้า"></a>{% endfor %}</div>
+        {% endif %}
+      </div>
+      <div class="stack">
+        <form method="post" action="/tickets/{{ t.id }}/post-dev" class="stack composer">
+          <input type="hidden" name="next" value="/replies">
+          <label class="field">ข้อความที่จะโพสต์ในกลุ่ม
+            <textarea name="text" rows="9" required>{{ item.text }}</textarea></label>
+          <div class="actions end">
+            <button class="go" onclick="return confirm('ส่ง ticket นี้เข้ากลุ่มโปรแกรมเมอร์?')">{{ icon('send', 15) }} อนุมัติและส่งเข้ากลุ่ม</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div class="tools">
+      <span class="muted small" style="flex:1">ส่งแล้วโปรแกรมเมอร์ reply โพสต์นี้เพื่ออัปเดตสถานะได้</span>
+      <form method="post" action="/tickets/{{ t.id }}/skip-dev">
+        <input type="hidden" name="next" value="/replies">
+        <button class="danger">ไม่ส่งเข้ากลุ่ม</button>
+      </form>
+    </div>
+  </article>
+  {% endfor %}
   {% for r in replies %}
   <article class="card reply">
     <header class="reply-head">
@@ -70,11 +112,13 @@
     </div>
   </article>
   {% else %}
+  {% if not dev_queue %}
   <section class="panel">
     <table class="grid-table"><tbody>
       <tr class="empty-row"><td>{{ icon('inbox', 24) }}<strong>ไม่มีข้อความรออนุมัติ</strong>ร่างคำตอบใหม่จะเข้ามาที่นี่เมื่อลูกค้าส่งข้อความในแชทที่ติดตาม</td></tr>
     </tbody></table>
   </section>
+  {% endif %}
   {% endfor %}
 {% else %}
   <section class="panel">

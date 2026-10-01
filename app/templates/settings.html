@@ -61,7 +61,9 @@
           <span class="hint">คั่นด้วยเครื่องหมายจุลภาค ไม่ต้องใส่ @ ระบบจะอ่านเฉพาะข้อความจากคนเหล่านี้</span></label>
         <div>
           <label class="check-row"><input type="checkbox" name="dev_forward" {{ 'checked' if settings.dev_forward == '1' }}>
-            <span>ส่ง ticket ใหม่เข้ากลุ่มอัตโนมัติ<span class="hint">พร้อมรูปจากลูกค้า และข้อมูลเพิ่มเติมที่ลูกค้าส่งตามมา</span></span></label>
+            <span>ส่ง ticket ใหม่เข้ากลุ่ม<span class="hint">พร้อมรูปจากลูกค้า และข้อมูลเพิ่มเติมที่ลูกค้าส่งตามมา</span></span></label>
+          <label class="check-row"><input type="checkbox" name="dev_require_approval" {{ 'checked' if settings.dev_require_approval == '1' }}>
+            <span>ต้องอนุมัติก่อนส่ง ticket เข้ากลุ่ม<span class="hint">ticket ใหม่จะรอที่หน้า "รออนุมัติ" แก้ข้อความได้ก่อนส่ง</span></span></label>
           <label class="check-row"><input type="checkbox" name="dev_watch" {{ 'checked' if settings.dev_watch == '1' }}>
             <span>อ่านข้อความโปรแกรมเมอร์และอัปเดต ticket<span class="hint">โปรแกรมเมอร์ต้อง reply โพสต์ ticket หรือพิมพ์ #เลข ticket · ข้อความถึงลูกค้ายังต้องอนุมัติก่อนส่ง</span></span></label>
         </div>

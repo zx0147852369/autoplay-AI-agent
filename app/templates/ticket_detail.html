@@ -130,12 +130,20 @@
       {% else %}
         <p class="small" style="margin:0 0 10px">
           {% if dev_posted %}<span class="state ok">{{ icon('check', 13) }} ส่งเข้ากลุ่มแล้ว</span>
+          {% elif ticket.dev_status == 'pending' %}<span class="state warn"><span class="dot wait"></span>รออนุมัติก่อนส่งเข้ากลุ่ม</span>
+          {% elif ticket.dev_status == 'skipped' %}<span class="state off">เลือกไม่ส่งเข้ากลุ่ม</span>
           {% else %}<span class="state off">ยังไม่ได้ส่งเข้ากลุ่ม</span>{% endif %}
         </p>
         {% if user.role in ('admin', 'agent') %}
         <form method="post" action="/tickets/{{ ticket.id }}/post-dev">
-          <button class="sm block">{{ icon('send', 13) }} {{ 'ส่งเข้ากลุ่มอีกครั้ง' if dev_posted else 'ส่งเข้ากลุ่มตอนนี้' }}</button>
+          <button class="sm block {{ 'go' if ticket.dev_status == 'pending' }}">{{ icon('send', 13) }}
+            {{ 'ส่งเข้ากลุ่มอีกครั้ง' if dev_posted else ('อนุมัติและส่งเข้ากลุ่ม' if ticket.dev_status == 'pending' else 'ส่งเข้ากลุ่มตอนนี้') }}</button>
         </form>
+        {% if ticket.dev_status == 'pending' %}
+        <form method="post" action="/tickets/{{ ticket.id }}/skip-dev" style="margin-top:6px">
+          <button class="sm block ghost">ไม่ส่งเข้ากลุ่ม</button>
+        </form>
+        {% endif %}
         {% endif %}
         <p class="hint" style="margin:10px 0 0">โปรแกรมเมอร์ reply โพสต์ ticket ในกลุ่ม เช่น "กำลังแก้" "แก้เสร็จแล้ว" ระบบจะอัปเดตสถานะให้</p>
       {% endif %}

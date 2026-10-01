@@ -121,6 +121,8 @@ class Ticket(Base):
     website_url: Mapped[str] = mapped_column(String(1024), default="")
     site_check: Mapped[str] = mapped_column(Text, default="")  # JSON ผลตรวจเว็บไซต์ล่าสุด
     assignee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    # การส่งเข้ากลุ่มโปรแกรมเมอร์: "" ยังไม่ส่ง / pending รออนุมัติ / sent ส่งแล้ว / skipped แอดมินเลือกไม่ส่ง
+    dev_status: Mapped[str] = mapped_column(String(16), default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
@@ -238,6 +240,7 @@ DEFAULT_SETTINGS = {
     "dev_usernames": "yuopa9",
     "staff_usernames": "",  # ทีมงานคนอื่นในกลุ่มลูกค้า คั่นด้วยจุลภาค
     "dev_forward": "1",
+    "dev_require_approval": "1",  # ต้องอนุมัติก่อนส่ง ticket เข้ากลุ่มโปรแกรมเมอร์
     "dev_watch": "1",
 }
 

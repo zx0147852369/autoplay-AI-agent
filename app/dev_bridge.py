@@ -12,7 +12,7 @@ import re
 from datetime import timedelta
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from . import ai_service
 from .config import MEDIA_DIR
@@ -73,20 +73,55 @@ async def auto_detect_group() -> int | None:
 
 
 async def post_backlog() -> int:
-    """ticket ที่ยังไม่ปิดและยังไม่เคยส่งเข้ากลุ่ม (ภายใน 24 ชม.) -> ส่งให้ครบ"""
+    """ticket ที่ยังไม่ปิดและยังไม่เคยส่งเข้ากลุ่ม (ภายใน 24 ชม.) -> เข้าคิวรออนุมัติ (หรือส่งเลยถ้าไม่ต้องอนุมัติ)"""
     since = utcnow() - timedelta(hours=BACKLOG_HOURS)
     with SessionLocal() as db:
         if get_settings(db).get("dev_forward") != "1":
             return 0
         posted = select(TicketLink.ticket_id)
         ids = list(db.scalars(select(Ticket.id).where(
-            Ticket.status.in_(("open", "in_progress")), Ticket.created_at >= since, Ticket.id.not_in(posted)
+            Ticket.status.in_(("open", "in_progress")), Ticket.created_at >= since, Ticket.id.not_in(posted),
+            Ticket.dev_status == "",
         ).order_by(Ticket.created_at).limit(10)))
-    sent = 0
+    done = 0
     for ticket_id in ids:
-        if (await post_ticket(ticket_id)).startswith("ส่งเข้ากลุ่ม"):
-            sent += 1
-    return sent
+        if await queue_ticket(ticket_id):
+            done += 1
+    return done
+
+
+async def queue_ticket(ticket_id: int) -> str:
+    """ticket ใหม่ -> ถ้าต้องอนุมัติให้เข้าคิวรออนุมัติ ไม่งั้นส่งเข้ากลุ่มเลย คืนค่าสิ่งที่ทำ"""
+    with SessionLocal() as db:
+        settings = get_settings(db)
+        ticket = db.get(Ticket, ticket_id)
+        if not ticket or ticket.dev_status in ("pending", "sent", "skipped"):
+            return ""
+        if settings.get("dev_forward") != "1" or not _group_id(settings):
+            return ""
+        if settings.get("dev_require_approval") == "1":
+            ticket.dev_status = "pending"
+            db.add(TicketEvent(ticket_id=ticket_id, kind="dev", author="ระบบ",
+                               body="รอแอดมินอนุมัติก่อนส่งเข้ากลุ่มโปรแกรมเมอร์"))
+            db.commit()
+            return "pending"
+    result = await post_ticket(ticket_id)
+    return "sent" if result.startswith("ส่งเข้ากลุ่ม") else ""
+
+
+def skip_ticket(ticket_id: int, username: str) -> bool:
+    with SessionLocal() as db:
+        ticket = db.get(Ticket, ticket_id)
+        if not ticket or ticket.dev_status != "pending":
+            return False
+        ticket.dev_status = "skipped"
+        db.add(TicketEvent(ticket_id=ticket_id, kind="dev", author=username, body="เลือกไม่ส่งเข้ากลุ่มโปรแกรมเมอร์"))
+        db.commit()
+    return True
+
+
+def pending_count(db) -> int:
+    return db.scalar(select(func.count(Ticket.id)).where(Ticket.dev_status == "pending")) or 0
 
 
 async def on_telegram_connected() -> None:
@@ -161,8 +196,9 @@ def format_ticket(ticket: Ticket, chat_title: str) -> str:
     return "\n".join(lines)
 
 
-async def post_ticket(ticket_id: int, force: bool = False) -> str:
-    """โพสต์ ticket เข้ากลุ่มโปรแกรมเมอร์ คืนค่าข้อความสรุปผล"""
+async def post_ticket(ticket_id: int, force: bool = False, text: str | None = None, approver: str = "") -> str:
+    """โพสต์ ticket เข้ากลุ่มโปรแกรมเมอร์ คืนค่าข้อความสรุปผล (text = ข้อความที่แอดมินแก้ก่อนอนุมัติ)"""
+    custom_text = (text or "").strip()
     with SessionLocal() as db:
         settings = get_settings(db)
         ticket = db.get(Ticket, ticket_id)
@@ -171,7 +207,7 @@ async def post_ticket(ticket_id: int, force: bool = False) -> str:
         posted = db.scalar(select(TicketLink.id).where(TicketLink.ticket_id == ticket_id).limit(1))
         chat = db.get(Chat, ticket.chat_id)
         photos = [str(MEDIA_DIR / a.media_path) for a in ticket.attachments][:MAX_PHOTOS]
-        text = format_ticket(ticket, chat.title if chat else str(ticket.chat_id))
+        text = custom_text or format_ticket(ticket, chat.title if chat else str(ticket.chat_id))
     group_id = _group_id(settings)
     if not group_id:
         return "ยังไม่ได้เลือกกลุ่มโปรแกรมเมอร์ในหน้าตั้งค่า"
@@ -199,7 +235,9 @@ async def post_ticket(ticket_id: int, force: bool = False) -> str:
     _save_links(ticket_id, group_id, ids)
     last_error = ""
     with SessionLocal() as db:
-        db.add(TicketEvent(ticket_id=ticket_id, kind="dev", author="ระบบ", body="ส่งรายละเอียดเข้ากลุ่มโปรแกรมเมอร์แล้ว"))
+        db.get(Ticket, ticket_id).dev_status = "sent"
+        body = f"อนุมัติและส่งเข้ากลุ่มโปรแกรมเมอร์แล้ว (โดย {approver})" if approver else "ส่งรายละเอียดเข้ากลุ่มโปรแกรมเมอร์แล้ว"
+        db.add(TicketEvent(ticket_id=ticket_id, kind="dev", author=approver or "ระบบ", body=body))
         db.commit()
     return "ส่งเข้ากลุ่มโปรแกรมเมอร์แล้ว"
 
@@ -216,8 +254,8 @@ async def post_customer_update(ticket_id: int, messages: list[Message]) -> None:
     if not group_id:
         return
     if not root:
-        # ticket นี้ยังไม่เคยส่งเข้ากลุ่ม (เช่น เปิดก่อนตั้งค่ากลุ่ม) -> ส่งทั้ง ticket ไปเลย
-        await post_ticket(ticket_id)
+        # ยังไม่เคยส่งเข้ากลุ่ม: ถ้ารออนุมัติอยู่ ข้อมูลใหม่จะรวมไปตอนอนุมัติเอง / ถ้ายังไม่เข้าคิว -> เข้าคิว
+        await queue_ticket(ticket_id)
         return
     lines = [f"ข้อมูลเพิ่มเติมจากลูกค้า · Ticket #{ticket_id}"]
     lines += [f"- {m.sender_name or 'ลูกค้า'}: {m.text or '(รูปภาพ)'}" for m in messages]

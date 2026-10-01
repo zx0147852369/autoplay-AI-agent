@@ -278,7 +278,7 @@ async def dashboard(request: Request):
     with SessionLocal() as db:
         settings = get_settings(db)
         account = db.get(TelegramAccount, 1)
-        pending = db.scalar(select(func.count(Reply.id)).where(Reply.status == "pending"))
+        pending = db.scalar(select(func.count(Reply.id)).where(Reply.status == "pending")) + dev_bridge.pending_count(db)
         open_by_cat = dict(db.execute(
             select(Ticket.category, func.count(Ticket.id))
             .where(Ticket.status.in_(analyzer.OPEN_STATUSES)).group_by(Ticket.category)
@@ -332,7 +332,7 @@ async def dashboard(request: Request):
 async def badge(request: Request):
     current_user(request)
     with SessionLocal() as db:
-        pending = db.scalar(select(func.count(Reply.id)).where(Reply.status == "pending"))
+        pending = db.scalar(select(func.count(Reply.id)).where(Reply.status == "pending")) + dev_bridge.pending_count(db)
         open_tickets = db.scalar(select(func.count(Ticket.id)).where(Ticket.status.in_(analyzer.OPEN_STATUSES)))
     return JSONResponse({"pending": pending, "open_tickets": open_tickets})
 
@@ -514,6 +514,10 @@ async def replies_page(request: Request, status: str = "pending"):
         replies = list(db.scalars(query))
         status_counts = dict(db.execute(select(Reply.status, func.count(Reply.id)).group_by(Reply.status)).all())
         chat_titles = {c.id: c.title for c in db.scalars(select(Chat))}
+        dev_queue = []
+        for t in db.scalars(select(Ticket).where(Ticket.dev_status == "pending").order_by(Ticket.created_at)):
+            dev_queue.append({"ticket": t, "photos": [a.media_path for a in t.attachments][:dev_bridge.MAX_PHOTOS],
+                              "text": dev_bridge.format_ticket(t, chat_titles.get(t.chat_id, str(t.chat_id)))})
         context = {}
         for r in replies:
             if r.status == "pending":
@@ -522,8 +526,10 @@ async def replies_page(request: Request, status: str = "pending"):
                     .order_by(Message.date.desc()).limit(8)
                 ))[::-1]
     status_counts["all"] = sum(status_counts.values())
+    status_counts["pending"] = status_counts.get("pending", 0) + len(dev_queue)
     return render(request, "replies.html", user, replies=replies, status=status, chat_titles=chat_titles,
-                  context=context, status_counts=status_counts)
+                  context=context, status_counts=status_counts, dev_queue=dev_queue,
+                  dev_group_title=chat_titles.get(telegram.dev_group_id, "กลุ่มโปรแกรมเมอร์"))
 
 
 def _load_pending(reply_id: int) -> Reply | None:
@@ -684,16 +690,29 @@ def build_timeline(events, attachments) -> list[dict]:
     return groups
 
 
+def _safe_next(value: str, default: str) -> str:
+    return value if value.startswith("/") and not value.startswith("//") else default
+
+
 @app.post("/tickets/{ticket_id}/post-dev")
-async def ticket_post_dev(request: Request, ticket_id: int):
-    current_user(request, "agent")
+async def ticket_post_dev(request: Request, ticket_id: int, text: str = Form(""), next: str = Form("")):
+    """อนุมัติและส่ง ticket เข้ากลุ่มโปรแกรมเมอร์ (text = ข้อความที่แอดมินแก้)"""
+    user = current_user(request, "agent")
     try:
-        result = await dev_bridge.post_ticket(ticket_id, force=True)
+        result = await dev_bridge.post_ticket(ticket_id, force=True, text=text, approver=user.username)
     except Exception as e:  # noqa: BLE001
         log.exception("post ticket to dev group failed")
         result = f"ส่งไม่สำเร็จ: {e}"
     flash(request, result or "ส่งแล้ว", "ok" if result.startswith("ส่งเข้ากลุ่ม") else "error")
-    return back(f"/tickets/{ticket_id}")
+    return back(_safe_next(next, f"/tickets/{ticket_id}"))
+
+
+@app.post("/tickets/{ticket_id}/skip-dev")
+async def ticket_skip_dev(request: Request, ticket_id: int, next: str = Form("")):
+    user = current_user(request, "agent")
+    if dev_bridge.skip_ticket(ticket_id, user.username):
+        flash(request, f"ไม่ส่ง ticket #{ticket_id} เข้ากลุ่มโปรแกรมเมอร์")
+    return back(_safe_next(next, f"/tickets/{ticket_id}"))
 
 
 @app.post("/tickets/{ticket_id}/update")
@@ -834,7 +853,8 @@ async def settings_save(request: Request):
     form = await request.form()
     with SessionLocal() as db:
         for key in DEFAULT_SETTINGS:
-            if key in ("auto_draft", "auto_ticket", "site_check", "ask_link", "notify_resolved", "dev_forward", "dev_watch"):
+            if key in ("auto_draft", "auto_ticket", "site_check", "ask_link", "notify_resolved", "dev_forward",
+                       "dev_require_approval", "dev_watch"):
                 value = "1" if form.get(key) else "0"
             elif key == "gemini_limits":
                 limits = {}
