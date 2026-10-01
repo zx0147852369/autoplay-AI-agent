@@ -1023,6 +1023,31 @@ async def ticket_check_site(request: Request, ticket_id: int):
 
 
 # ---------------------------------------------------------------- คู่มือตอบคำถาม
+@app.get("/bank")
+async def bank_page(request: Request):
+    """รวมงานเชื่อม/เจนบัญชี SCB LINE Connect ไว้ที่เดียวสำหรับทีมเชื่อมบัญชี"""
+    user = current_user(request, "agent")
+    cats = dev_bridge.BANK_CATEGORIES
+    with SessionLocal() as db:
+        rows = list(db.scalars(select(Ticket).where(Ticket.category.in_(cats))
+                               .order_by(Ticket.created_at.desc())))
+        chat_titles = {c.id: c.title for c in db.scalars(select(Chat))}
+    items, counts = [], {"gen": 0, "open": 0, "done": 0}
+    nsteps = len(BANK_GEN_STEPS)
+    for t in rows:
+        done = len([k for k in json.loads(t.checklist or "[]") if k in BANK_GEN_STEP_KEYS])
+        is_gen = t.category == "bank_gen"
+        items.append({"t": t, "chat": chat_titles.get(t.chat_id, t.chat_id), "is_gen": is_gen,
+                      "done": done, "steps": nsteps, "pct": round(done / nsteps * 100) if nsteps else 0})
+        if is_gen:
+            counts["gen"] += 1
+        if t.status in ("open", "in_progress"):
+            counts["open"] += 1
+        elif t.status in ("resolved", "closed"):
+            counts["done"] += 1
+    return render(request, "bank.html", user, items=items, counts=counts, panel_url=BANK_PANEL_URL)
+
+
 @app.get("/guides")
 async def guides_page(request: Request, q: str = ""):
     user = current_user(request, "agent")

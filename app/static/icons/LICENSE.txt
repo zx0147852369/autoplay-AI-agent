@@ -4,7 +4,7 @@
   https://github.com/microsoft/fluentui-system-icons/blob/main/LICENSE
   ไฟล์: add-circle, apps-list, calendar-clock, chat, chat-multiple, checkmark-circle, clipboard-task, home, settings,
         dismiss-circle, lock-closed, book-open-lightbulb, question-circle, gauge, data-trending,
-        chat-bubbles-question, book-open, history, bell (alert), mail-clock, mail-multiple, person-available, send, warning, wrench
+        chat-bubbles-question, book-open, history, bell (alert), building (bank), mail-clock, mail-multiple, person-available, send, warning, wrench
 
 - delete.svg (Wastebasket) จาก Fluent Emoji Flat โดย Microsoft Corporation — MIT License
   https://github.com/microsoft/fluentui-emoji/blob/main/LICENSE
