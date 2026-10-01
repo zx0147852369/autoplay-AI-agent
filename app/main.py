@@ -173,7 +173,10 @@ def back(url: str) -> RedirectResponse:
 # ---------------------------------------------------------------- login
 @app.get("/login")
 async def login_page(request: Request):
-    return render(request, "login.html", None, need_setup=not ADMIN_PASSWORD)
+    # หน้า login แสดงข้อผิดพลาดในฟอร์มเลย แทนการเด้งเป็น toast
+    flashes = request.session.pop("flash", [])
+    return render(request, "login.html", None, need_setup=not ADMIN_PASSWORD, year=utcnow().year,
+                  login_errors=list(dict.fromkeys(f["message"] for f in flashes if f["kind"] == "error")))
 
 
 # กันการเดารหัสผ่าน: ผิดเกิน LOGIN_MAX_FAILS ครั้งใน LOGIN_WINDOW วินาที ต่อ IP -> ต้องรอ

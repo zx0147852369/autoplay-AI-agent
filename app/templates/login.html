@@ -2,32 +2,74 @@
 {% from "_icons.html" import icon %}
 {% block title %}เข้าสู่ระบบ{% endblock %}
 {% block auth %}
-<div class="auth-wrap">
-  <aside class="auth-side">
-    <div>
-      <img class="auth-logo" src="/static/brand/logo-full.png" alt="autopay — powering seamless digital transactions" width="320" height="77">
-      <p class="auth-title">Support Desk</p>
+<div class="login">
+  <aside class="login-brand">
+    <div class="login-brand-top">
+      <span class="login-kicker">autopay · Support Desk</span>
     </div>
-    <ul class="auth-points">
-      <li>{{ icon('inbox', 16) }}<span><strong>ตรวจก่อนส่งทุกข้อความ</strong>ร่างคำตอบจะรอในคิวจนกว่าทีมงานกดอนุมัติ</span></li>
-      <li>{{ icon('ticket', 16) }}<span><strong>ปัญหาลูกค้าเป็น ticket</strong>เว็บล่ม เข้าระบบไม่ได้ ฝากไม่เข้า ถูกบันทึกพร้อมรูปและลิงก์</span></li>
-      <li>{{ icon('users', 16) }}<span><strong>ส่งต่อให้โปรแกรมเมอร์</strong>มอบหมายงาน อัปเดตสถานะ และจดบันทึกการแก้ไขได้ในที่เดียว</span></li>
+
+    <div class="login-hero">
+      <div class="mascot-wrap"><img src="/static/brand/mascot.png" alt="" width="232" height="237"></div>
+      <h2>ตอบลูกค้าไว<br>ไม่พลาดทุกปัญหา</h2>
+      <p>ระบบช่วยทีมซัพพอร์ตอ่านแชทลูกค้าใน Telegram ร่างคำตอบให้ตรวจก่อนส่ง และเปิด ticket ให้โปรแกรมเมอร์เมื่อเว็บล่ม เข้าระบบไม่ได้ หรือฝากไม่เข้า</p>
+    </div>
+
+    <ul class="login-facts">
+      <li><span class="fact-ic">{{ icon('inbox', 16) }}</span>ทุกข้อความต้องอนุมัติก่อนส่ง</li>
+      <li><span class="fact-ic">{{ icon('ticket', 16) }}</span>ปัญหาถูกบันทึกพร้อมรูปและลิงก์</li>
+      <li><span class="fact-ic">{{ icon('globe', 16) }}</span>ตรวจสถานะเว็บไซต์ให้อัตโนมัติ</li>
     </ul>
-    <p class="fine">สำหรับทีมงานเท่านั้น</p>
   </aside>
-  <main class="auth-main">
-    <div class="auth-form">
-      <h1>เข้าสู่ระบบ</h1>
-      <p class="sub">ใช้บัญชีที่ผู้ดูแลระบบสร้างให้</p>
+
+  <main class="login-main">
+    <div class="login-card">
+      <img class="login-logo" src="/static/brand/logo.png" alt="autopay" width="200" height="41">
+      <h1>เข้าสู่ระบบหลังบ้าน</h1>
+      <p class="login-sub">ใช้ชื่อผู้ใช้และรหัสผ่านที่ผู้ดูแลระบบสร้างให้</p>
+
       {% if need_setup %}
-        <div class="note error" style="margin-bottom:18px">ยังไม่ได้ตั้งค่า <code>ADMIN_PASSWORD</code> บนเซิร์ฟเวอร์ ตั้งค่าใน Variables แล้วรีสตาร์ทระบบ</div>
+        <div class="login-alert">{{ icon('alert', 16) }}<span>ยังไม่ได้ตั้งค่า <code>ADMIN_PASSWORD</code> บนเซิร์ฟเวอร์ ตั้งค่าใน Variables แล้วรีสตาร์ทระบบ</span></div>
       {% endif %}
-      <form method="post" action="/login" class="stack">
-        <label class="field">ชื่อผู้ใช้ <input name="username" required autofocus autocomplete="username"></label>
-        <label class="field">รหัสผ่าน <input name="password" type="password" required autocomplete="current-password"></label>
-        <button class="primary lg block">เข้าสู่ระบบ</button>
+      {% for message in login_errors %}
+        <div class="login-alert" role="alert">{{ icon('alert', 16) }}<span>{{ message }}</span></div>
+      {% endfor %}
+
+      <form method="post" action="/login" class="login-form" id="loginForm">
+        <label class="login-field">
+          <span>ชื่อผู้ใช้</span>
+          <span class="input-wrap">{{ icon('user', 17) }}<input name="username" required autofocus autocomplete="username" autocapitalize="none" spellcheck="false"></span>
+        </label>
+        <label class="login-field">
+          <span>รหัสผ่าน</span>
+          <span class="input-wrap">{{ icon('lock', 17) }}<input name="password" id="password" type="password" required autocomplete="current-password">
+            <button type="button" class="reveal" id="reveal" aria-label="แสดงรหัสผ่าน" title="แสดงรหัสผ่าน">
+              <span class="when-hidden">{{ icon('eye', 17) }}</span><span class="when-shown">{{ icon('eye-off', 17) }}</span>
+            </button>
+          </span>
+        </label>
+        <p class="caps-hint" id="capsHint" hidden>{{ icon('alert', 13) }} Caps Lock เปิดอยู่</p>
+        <button class="login-submit" id="submitBtn">เข้าสู่ระบบ</button>
       </form>
+
+      <p class="login-help">ลืมรหัสผ่าน? ติดต่อผู้ดูแลระบบให้ตั้งรหัสใหม่</p>
     </div>
+    <footer class="login-foot">© {{ year }} autopay · สำหรับทีมงานเท่านั้น</footer>
   </main>
 </div>
+<script>
+  const pw = document.getElementById('password');
+  const reveal = document.getElementById('reveal');
+  reveal.addEventListener('click', () => {
+    const show = pw.type === 'password';
+    pw.type = show ? 'text' : 'password';
+    reveal.classList.toggle('on', show);
+    reveal.setAttribute('aria-label', show ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน');
+    pw.focus();
+  });
+  const caps = document.getElementById('capsHint');
+  pw.addEventListener('keyup', e => { caps.hidden = !(e.getModifierState && e.getModifierState('CapsLock')); });
+  document.getElementById('loginForm').addEventListener('submit', () => {
+    const b = document.getElementById('submitBtn'); b.disabled = true; b.textContent = 'กำลังเข้าสู่ระบบ…';
+  });
+</script>
 {% endblock %}
