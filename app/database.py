@@ -127,6 +127,7 @@ class TicketEvent(Base):
     kind: Mapped[str] = mapped_column(String(24))  # customer_message / ai_summary / note / status
     author: Mapped[str] = mapped_column(String(128), default="")
     body: Mapped[str] = mapped_column(Text, default="")
+    media_path: Mapped[str] = mapped_column(String(512), default="", server_default="")  # รูปที่ลูกค้าส่งมากับข้อความ
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     ticket: Mapped[Ticket] = relationship(back_populates="events")

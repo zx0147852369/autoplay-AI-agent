@@ -611,9 +611,37 @@ async def ticket_detail(request: Request, ticket_id: int):
         users = list(db.scalars(select(User).order_by(User.username)))
         replies = list(db.scalars(select(Reply).where(Reply.ticket_id == ticket_id).order_by(Reply.created_at)))
         dev_posted = db.scalar(select(func.count(TicketLink.id)).where(TicketLink.ticket_id == ticket_id))
-    return render(request, "ticket_detail.html", user, ticket=ticket, events=events, attachments=attachments,
-                  chat=chat, users=users, replies=replies, dev_posted=dev_posted,
+    return render(request, "ticket_detail.html", user, ticket=ticket, timeline=build_timeline(events, attachments),
+                  attachments=attachments, chat=chat, users=users, replies=replies, dev_posted=dev_posted,
                   dev_group_set=bool(telegram.dev_group_id))
+
+
+def build_timeline(events, attachments) -> list[dict]:
+    """จัดประวัติ ticket: ข้อความลูกค้าที่ส่งติดกัน (คนเดียวกัน ห่างกันไม่เกิน 10 นาที) รวมเป็นก้อนเดียว พร้อมรูป"""
+    # ประวัติเก่าที่ยังไม่มี media_path: จับคู่รูปแนบตามลำดับ (คำบรรยายรูป = ข้อความเดียวกัน)
+    unused = list(attachments)
+    groups: list[dict] = []
+    for e in events:
+        media = e.media_path
+        if e.kind == "customer_message" and not media:
+            caption = "" if e.body == "(รูปภาพ)" else e.body
+            # รูปเปล่า: คำบรรยายว่าง / รูปพร้อมข้อความ: คำบรรยายตรงกับข้อความ
+            match = next((a for a in unused if (a.caption or "") == caption), None) if (caption or e.body) else None
+            if match:
+                unused.remove(match)
+                media = match.media_path
+        elif media:
+            unused = [a for a in unused if a.media_path != media]
+        body = "" if e.body == "(รูปภาพ)" and media else e.body
+        last = groups[-1] if groups else None
+        if (last and e.kind == "customer_message" and last["kind"] == e.kind and last["author"] == e.author
+                and (e.created_at - last["last_at"]).total_seconds() <= 600):
+            last["items"].append({"body": body, "media": media})
+            last["last_at"] = e.created_at
+            continue
+        groups.append({"kind": e.kind, "author": e.author, "created_at": e.created_at, "last_at": e.created_at,
+                       "items": [{"body": body, "media": media}]})
+    return groups
 
 
 @app.post("/tickets/{ticket_id}/post-dev")
@@ -726,8 +754,12 @@ async def ticket_check_site(request: Request, ticket_id: int):
     if result is None:
         flash(request, "ticket นี้ไม่มีลิงก์เว็บไซต์", "error")
     else:
-        flash(request, "เว็บไซต์เข้าได้ปกติ" if result["ok"] else f"เว็บไซต์เข้าไม่ได้: {result['error']}",
-              "ok" if result["ok"] else "error")
+        if not result["ok"]:
+            flash(request, f"เว็บไซต์เข้าไม่ได้: {result['error']}", "error")
+        elif result.get("other_host"):
+            flash(request, f"เว็บไซต์ถูกพาไปโดเมนอื่น ({result.get('final_host')}) โดเมนอาจหมดอายุ", "error")
+        else:
+            flash(request, "เว็บไซต์เข้าได้ปกติ")
     return back(f"/tickets/{ticket_id}")
 
 

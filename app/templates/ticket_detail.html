@@ -21,9 +21,17 @@
       <dl class="facts">
         <dt>ลูกค้า</dt><dd>{{ ticket.customer_name or '-' }}</dd>
         <dt>แชท</dt><dd>{% if chat %}<a href="/chats/{{ chat.id }}">{{ chat.title }}</a>{% else %}{{ ticket.chat_id }}{% endif %}</dd>
-        <dt>เว็บไซต์</dt><dd>{% set u = ticket.website_url %}{% if u.lower().startswith(('http://', 'https://')) %}<a href="{{ u }}" target="_blank" rel="noopener noreferrer" class="mono">{{ u }}</a>{% else %}{{ u or '-' }}{% endif %}</dd>
+        <dt>เว็บไซต์</dt><dd>
+          {%- set u = ticket.website_url | trim %}
+          {%- set href = u if u.lower().startswith(('http://', 'https://')) else ('https://' ~ u) %}
+          {%- if u and ' ' not in u and '.' in u and not u.lower().startswith(('javascript:', 'data:')) -%}
+            <a href="{{ href }}" target="_blank" rel="noopener noreferrer" class="mono">{{ u }} {{ icon('external', 12) }}</a>
+          {%- else %}{{ u or 'ยังไม่มีลิงก์' }}{% endif %}</dd>
+        <dt>ผู้รับผิดชอบ</dt><dd>{% set a = users | selectattr('id', 'equalto', ticket.assignee_id) | first %}{{ a.username if a else 'ยังไม่มอบหมาย' }}</dd>
+        <dt>อัปเดตล่าสุด</dt><dd class="mono small">{{ ticket.updated_at | localtime }}</dd>
       </dl>
-      <div class="summary">{{ ticket.summary }}</div>
+      <p class="section-title">สรุปปัญหา</p>
+      <div class="summary">{{ ticket.summary or '—' }}</div>
     </section>
 
     {% set sc = ticket.site_check | fromjson %}
@@ -33,12 +41,19 @@
         <form method="post" action="/tickets/{{ ticket.id }}/check-site"><button class="sm" {{ '' if ticket.website_url else 'disabled' }}>{{ icon('refresh', 13) }} ตรวจอีกครั้ง</button></form>
       </div>
       {% if sc %}
-        <div class="site-status {{ 'up' if sc.ok else 'down' }}">
-          <span class="state"><span class="dot {{ 'live' if sc.ok else 'off' }}"></span>{{ 'เข้าได้ปกติ' if sc.ok else 'เข้าไม่ได้' }}</span>
+        {% set state = 'down' if not sc.ok else ('moved' if sc.other_host else 'up') %}
+        <div class="site-status {{ state }}">
+          <span class="state"><span class="dot {{ {'up': 'live', 'moved': 'wait', 'down': 'off'}[state] }}"></span>
+            {{ {'up': 'เข้าได้ปกติ', 'moved': 'ถูกพาไปโดเมนอื่น', 'down': 'เข้าไม่ได้'}[state] }}</span>
           <span class="mono small">{% if sc.status_code %}HTTP {{ sc.status_code }}{% else %}{{ sc.error }}{% endif %} · {{ sc.elapsed_ms }} ms</span>
           {% if sc.checked_at %}<span class="muted small">ตรวจเมื่อ {{ sc.checked_at | isolocal }}</span>{% endif %}
         </div>
-        {% if sc.final_url and sc.final_url != sc.url %}<p class="muted small" style="margin:8px 0 0">redirect ไปที่ <span class="mono">{{ sc.final_url }}</span></p>{% endif %}
+        {% if state == 'moved' %}
+          <div class="note warn" style="margin-top:10px">เปิด <span class="mono">{{ sc.url }}</span> แล้วถูกพาไปที่ <strong class="mono">{{ sc.final_host }}</strong>
+            ไม่ใช่เว็บของลูกค้า โดเมนอาจหมดอายุ ถูกเปลี่ยน หรือลิงก์ที่บันทึกไว้ไม่ถูกต้อง</div>
+        {% elif sc.final_url and sc.final_url != sc.url %}
+          <p class="muted small" style="margin:8px 0 0">redirect ไปที่ <span class="mono">{{ sc.final_url }}</span></p>
+        {% endif %}
       {% else %}<p class="muted" style="margin:0">{{ 'ยังไม่ได้ตรวจ' if ticket.website_url else 'ยังไม่มีลิงก์เว็บไซต์ ใส่ได้ที่แผงด้านขวา' }}</p>{% endif %}
     </section>
 
@@ -57,14 +72,20 @@
       <div class="card-head"><h2>ประวัติ</h2></div>
       {% set kinds = {'customer_message': 'ลูกค้า', 'ai_summary': 'สรุปอัตโนมัติ', 'note': 'บันทึก', 'status': 'อัปเดต', 'site_check': 'ตรวจเว็บ', 'dev': 'โปรแกรมเมอร์'} %}
       <ol class="timeline">
-        {% for e in events %}
-          <li class="ev-{{ e.kind }}">
-            <span class="tl-when">{{ e.created_at | localtime }}</span>
+        {% for g in timeline %}
+          <li class="ev-{{ g.kind }}">
+            <span class="tl-when">{{ g.created_at | localtime }}</span>
             <div>
-              <div class="tl-who"><strong>{{ kinds.get(e.kind, e.kind) }}</strong>{% if e.author %} · {{ e.author }}{% endif %}</div>
-              <div class="body">{{ e.body }}</div>
+              <div class="tl-who"><strong>{{ kinds.get(g.kind, g.kind) }}</strong>{% if g.author %} · {{ g.author }}{% endif %}
+                {% if g['items'] | length > 1 %}<span class="muted"> · {{ g['items'] | length }} ข้อความ</span>{% endif %}</div>
+              {% set texts = g['items'] | map(attribute='body') | select | list %}
+              {% if texts %}<div class="body">{{ texts | join('\n') }}</div>{% endif %}
+              {% set pics = g['items'] | map(attribute='media') | select | list %}
+              {% if pics %}<div class="tl-pics">{% for p in pics %}<a href="/media/{{ p }}" target="_blank"><img src="/media/{{ p }}" alt="รูปจากลูกค้า" loading="lazy"></a>{% endfor %}</div>{% endif %}
             </div>
           </li>
+        {% else %}
+          <li><span></span><div class="muted small">ยังไม่มีประวัติ</div></li>
         {% endfor %}
       </ol>
       <form method="post" action="/tickets/{{ ticket.id }}/note" class="stack">

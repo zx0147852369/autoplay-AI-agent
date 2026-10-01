@@ -146,7 +146,12 @@ def format_ticket(ticket: Ticket, chat_title: str) -> str:
         site = ""
         if ticket.site_check:
             sc = json.loads(ticket.site_check)
-            site = " (เข้าได้)" if sc.get("ok") else f" (เข้าไม่ได้: {sc.get('error') or sc.get('status_code')})"
+            if not sc.get("ok"):
+                site = f" (เข้าไม่ได้: {sc.get('error') or sc.get('status_code')})"
+            elif sc.get("other_host"):
+                site = f" (ถูกพาไป {sc.get('final_host')} โดเมนอาจหมดอายุ)"
+            else:
+                site = " (เข้าได้)"
         lines.append(f"เว็บไซต์: {ticket.website_url}{site}")
     else:
         lines.append("เว็บไซต์: ยังไม่มีลิงก์ (ขอจากลูกค้าแล้ว)")

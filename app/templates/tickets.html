@@ -74,7 +74,8 @@
         <td class="id">{{ t.id }}</td>
         <td class="col-title"><a class="title-link" href="/tickets/{{ t.id }}">{{ t.title }}</a>
           {% set sc = t.site_check | fromjson %}
-          {% if sc and not sc.ok %}<div class="small error-text">{{ icon('globe', 12) }} เว็บเข้าไม่ได้</div>{% endif %}</td>
+          {% if sc and not sc.ok %}<div class="small error-text">{{ icon('globe', 12) }} เว็บเข้าไม่ได้</div>
+          {% elif sc and sc.other_host %}<div class="small" style="color:var(--amber)">{{ icon('globe', 12) }} เว็บถูกพาไป {{ sc.final_host }}</div>{% endif %}</td>
         <td class="small col-opt">{{ CATEGORIES.get(t.category, t.category) }}</td>
         <td class="nowrap">{{ t.customer_name or '-' }}<div class="muted small">{{ chat_titles.get(t.chat_id, '') }}</div></td>
         <td class="shrink"><span class="tag sev-{{ t.severity }}">{{ SEVERITY_LABELS[t.severity] }}</span></td>

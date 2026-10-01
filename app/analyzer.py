@@ -239,9 +239,8 @@ async def _save_ticket(chat_id: int, result: ai_service.Analysis, new_messages: 
                 ticket.severity = result.severity
 
         for m in customer_msgs:
-            body = m.text or ("(รูปภาพ)" if m.media_path else "")
             db.add(TicketEvent(ticket_id=ticket.id, kind="customer_message", author=m.sender_name,
-                               body=body, created_at=m.date))
+                               body=m.text or "", media_path=m.media_path or "", created_at=m.date))
             if m.media_path:
                 db.add(TicketAttachment(ticket_id=ticket.id, media_path=m.media_path, caption=m.text))
         db.commit()
@@ -273,7 +272,8 @@ async def run_site_check(ticket_id: int) -> dict | None:
     with SessionLocal() as db:
         ticket = db.get(Ticket, ticket_id)
         ticket.site_check = json.dumps(result, ensure_ascii=False)
-        status = "เข้าได้" if result["ok"] else "เข้าไม่ได้"
+        status = "เข้าไม่ได้" if not result["ok"] else (
+            f"ถูกพาไปโดเมนอื่น ({result.get('final_host')})" if result.get("other_host") else "เข้าได้")
         detail = f"HTTP {result['status_code']}" if result["status_code"] else result["error"]
         db.add(TicketEvent(ticket_id=ticket_id, kind="site_check", author="ระบบ",
                            body=f"ตรวจ {result['url']}: {status} ({detail}, {result['elapsed_ms']} ms)"))

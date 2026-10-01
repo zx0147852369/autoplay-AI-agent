@@ -31,6 +31,17 @@ async def _is_public_host(host: str) -> bool:
     return True
 
 
+def _base_host(host: str) -> str:
+    host = (host or "").lower().rstrip(".")
+    return host[4:] if host.startswith("www.") else host
+
+
+def same_site(a: str, b: str) -> bool:
+    """โดเมนเดียวกัน (นับ www. และ subdomain เป็นเว็บเดียวกัน)"""
+    a, b = _base_host(a), _base_host(b)
+    return a == b or a.endswith("." + b) or b.endswith("." + a)
+
+
 async def check_site(url: str) -> dict:
     url = _normalize(url)
     result = {"url": url, "checked_at": utcnow().isoformat(), "ok": False,
@@ -54,6 +65,10 @@ async def check_site(url: str) -> dict:
                 url = str(response.url.join(response.headers["location"]))
         result["status_code"] = response.status_code
         result["final_url"] = url
+        # ถูกพาไปโดเมนอื่น (เช่น หน้าขายโดเมนหมดอายุ) -> เข้าได้แต่ไม่ใช่เว็บของลูกค้า
+        start_host, final_host = urlparse(result["url"]).hostname, urlparse(url).hostname
+        result["other_host"] = bool(start_host and final_host and not same_site(start_host, final_host))
+        result["final_host"] = final_host or ""
         result["ok"] = response.status_code < 400
         if not result["ok"]:
             result["error"] = f"HTTP {response.status_code}"
