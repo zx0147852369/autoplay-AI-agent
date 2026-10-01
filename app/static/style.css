@@ -752,3 +752,11 @@ img.avatar.logo { object-fit: cover; background: #fff; border: 1px solid var(--l
 @media (max-width: 1000px) { .account-grid { grid-template-columns: 1fr; } }
 .account-single { max-width: 480px; }
 
+/* แถบบันทึกการตั้งค่า (ติดขอบล่างจอ) */
+.save-bar {
+  grid-column: 1 / -1; position: sticky; bottom: 12px; z-index: 5; display: flex; align-items: center; justify-content: flex-end; gap: 14px;
+  padding: 10px 14px; background: rgba(255, 255, 255, .94); backdrop-filter: blur(6px); border: 1px solid var(--line);
+  border-radius: var(--r-lg); box-shadow: 0 8px 24px rgba(28, 27, 25, .1);
+}
+.save-bar button { min-width: 180px; }
+

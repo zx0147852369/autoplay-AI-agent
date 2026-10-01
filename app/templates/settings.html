@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon, cicon %}
 {% block title %}ตั้งค่า{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -22,6 +23,62 @@
     </div>
   </section>
   {% include "_sound_card.html" %}
+  <section class="card">
+    <div class="card-head"><h2>โมเดลและเวลา</h2></div>
+    <div class="stack">
+      <label class="field">โมเดล AI
+        <select name="ai_model">
+          <optgroup label="Google AI Studio (ฟรี)">
+            {% for m, label in GEMINI_MODELS.items() %}<option value="{{ m }}" {{ 'selected' if settings.ai_model == m }}>{{ label }}</option>{% endfor %}
+          </optgroup>
+          <optgroup label="Anthropic Claude (เสียเงิน)">
+            {% for m, label in CLAUDE_MODELS.items() %}<option value="{{ m }}" {{ 'selected' if settings.ai_model == m }}>{{ label }}</option>{% endfor %}
+          </optgroup>
+        </select>
+      </label>
+      <div class="key-status">
+        {% for label, masked, bad in gemini_keys %}
+          <span><span class="dot {{ 'off' if bad else 'live' }}"></span> <code>{{ 'GEMINI_API_KEY' if loop.first else 'GEMINI_API_KEY_' ~ loop.index }}</code>
+            {{ label }} <span class="mono muted">{{ masked }}</span>{% if bad %} <span class="error-text">· Google แจ้งว่าคีย์ใช้ไม่ได้</span>{% endif %}</span>
+        {% else %}
+          <span><span class="dot off"></span> <code>GEMINI_API_KEY</code> ยังไม่ได้ตั้ง</span>
+        {% endfor %}
+        {% if gemini_keys | length == 1 %}
+          <span><span class="dot wait"></span> <code>GEMINI_API_KEY_2</code> ยังไม่มีคีย์สำรอง</span>
+        {% endif %}
+        <span><span class="dot {{ 'live' if has_claude_key else 'off' }}"></span> <code>ANTHROPIC_API_KEY</code> {{ 'ตั้งค่าแล้ว' if has_claude_key else 'ยังไม่ได้ตั้ง' }}</span>
+      </div>
+      <p class="hint" style="margin:6px 0 0">คีย์สำรอง: เพิ่ม <code>GEMINI_API_KEY_2</code>, <code>GEMINI_API_KEY_3</code> ใน Variables ของ Railway
+        เมื่อคีย์หลักโควตาเต็ม ระบบจะสลับไปใช้คีย์สำรองกับรุ่นเดิมก่อน แล้วค่อยลดไปรุ่นอื่น · ควรสร้างคีย์จากคนละบัญชี Google เพราะโควตาฟรีนับต่อโปรเจกต์</p>
+      {% if settings.ai_model.startswith('gemini') and not has_gemini_key %}
+        <div class="note error">โมเดลที่เลือกต้องใช้ <code>GEMINI_API_KEY</code> สร้างฟรีที่ <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> แล้วใส่ใน Variables ของ Railway</div>
+      {% elif settings.ai_model.startswith('claude') and not has_claude_key %}
+        <div class="note error">โมเดลที่เลือกต้องใช้ <code>ANTHROPIC_API_KEY</code></div>
+      {% endif %}
+      <div class="field">เพดานโควตาฟรีต่อรุ่น <span class="hint">ดูตัวเลขจริงของบัญชีคุณที่ <a href="https://aistudio.google.com/rate-limit" target="_blank" rel="noopener">AI Studio</a> · ใส่ 0 = ไม่จำกัด</span>
+        <table class="grid-table limits-table">
+          <thead><tr><th>รุ่น</th><th class="shrink">ต่อวัน</th><th class="shrink">ต่อนาที</th></tr></thead>
+          <tbody>
+          {% for model, lim in limits.items() %}
+            <tr><td class="mono small">{{ model }}</td>
+              <td><input name="rpd__{{ model }}" type="number" min="0" max="100000" value="{{ lim.rpd }}" class="mono"></td>
+              <td><input name="rpm__{{ model }}" type="number" min="0" max="10000" value="{{ lim.rpm }}" class="mono"></td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        <input type="hidden" name="gemini_limits" value="1">
+      </div>
+      <label class="field">ความละเอียดในการคิด <span class="hint">ใช้กับ Claude เท่านั้น</span>
+        <select name="ai_effort">
+          {% for e, l in [('low', 'ต่ำ — เร็วและประหยัด'), ('medium', 'กลาง'), ('high', 'สูง — ละเอียดที่สุด')] %}<option value="{{ e }}" {{ 'selected' if settings.ai_effort == e }}>{{ l }}</option>{% endfor %}
+        </select>
+      </label>
+      <div class="row">
+        <label class="field">รอลูกค้าพิมพ์ (วินาที) <input name="debounce_seconds" type="number" min="0" max="600" class="mono" value="{{ settings.debounce_seconds }}"></label>
+        <label class="field">อ่านย้อนหลัง (ข้อความ) <input name="context_messages" type="number" min="5" max="100" class="mono" value="{{ settings.context_messages }}"></label>
+      </div>
+    </div>
+  </section>
   </div>
 
   <div>
@@ -83,63 +140,10 @@
         </div>
       </div>
     </section>
-    <section class="card">
-      <div class="card-head"><h2>โมเดลและเวลา</h2></div>
-      <div class="stack">
-        <label class="field">โมเดล AI
-          <select name="ai_model">
-            <optgroup label="Google AI Studio (ฟรี)">
-              {% for m, label in GEMINI_MODELS.items() %}<option value="{{ m }}" {{ 'selected' if settings.ai_model == m }}>{{ label }}</option>{% endfor %}
-            </optgroup>
-            <optgroup label="Anthropic Claude (เสียเงิน)">
-              {% for m, label in CLAUDE_MODELS.items() %}<option value="{{ m }}" {{ 'selected' if settings.ai_model == m }}>{{ label }}</option>{% endfor %}
-            </optgroup>
-          </select>
-        </label>
-        <div class="key-status">
-          {% for label, masked, bad in gemini_keys %}
-            <span><span class="dot {{ 'off' if bad else 'live' }}"></span> <code>{{ 'GEMINI_API_KEY' if loop.first else 'GEMINI_API_KEY_' ~ loop.index }}</code>
-              {{ label }} <span class="mono muted">{{ masked }}</span>{% if bad %} <span class="error-text">· Google แจ้งว่าคีย์ใช้ไม่ได้</span>{% endif %}</span>
-          {% else %}
-            <span><span class="dot off"></span> <code>GEMINI_API_KEY</code> ยังไม่ได้ตั้ง</span>
-          {% endfor %}
-          {% if gemini_keys | length == 1 %}
-            <span><span class="dot wait"></span> <code>GEMINI_API_KEY_2</code> ยังไม่มีคีย์สำรอง</span>
-          {% endif %}
-          <span><span class="dot {{ 'live' if has_claude_key else 'off' }}"></span> <code>ANTHROPIC_API_KEY</code> {{ 'ตั้งค่าแล้ว' if has_claude_key else 'ยังไม่ได้ตั้ง' }}</span>
-        </div>
-        <p class="hint" style="margin:6px 0 0">คีย์สำรอง: เพิ่ม <code>GEMINI_API_KEY_2</code>, <code>GEMINI_API_KEY_3</code> ใน Variables ของ Railway
-          เมื่อคีย์หลักโควตาเต็ม ระบบจะสลับไปใช้คีย์สำรองกับรุ่นเดิมก่อน แล้วค่อยลดไปรุ่นอื่น · ควรสร้างคีย์จากคนละบัญชี Google เพราะโควตาฟรีนับต่อโปรเจกต์</p>
-        {% if settings.ai_model.startswith('gemini') and not has_gemini_key %}
-          <div class="note error">โมเดลที่เลือกต้องใช้ <code>GEMINI_API_KEY</code> สร้างฟรีที่ <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> แล้วใส่ใน Variables ของ Railway</div>
-        {% elif settings.ai_model.startswith('claude') and not has_claude_key %}
-          <div class="note error">โมเดลที่เลือกต้องใช้ <code>ANTHROPIC_API_KEY</code></div>
-        {% endif %}
-        <div class="field">เพดานโควตาฟรีต่อรุ่น <span class="hint">ดูตัวเลขจริงของบัญชีคุณที่ <a href="https://aistudio.google.com/rate-limit" target="_blank" rel="noopener">AI Studio</a> · ใส่ 0 = ไม่จำกัด</span>
-          <table class="grid-table limits-table">
-            <thead><tr><th>รุ่น</th><th class="shrink">ต่อวัน</th><th class="shrink">ต่อนาที</th></tr></thead>
-            <tbody>
-            {% for model, lim in limits.items() %}
-              <tr><td class="mono small">{{ model }}</td>
-                <td><input name="rpd__{{ model }}" type="number" min="0" max="100000" value="{{ lim.rpd }}" class="mono"></td>
-                <td><input name="rpm__{{ model }}" type="number" min="0" max="10000" value="{{ lim.rpm }}" class="mono"></td></tr>
-            {% endfor %}
-            </tbody>
-          </table>
-          <input type="hidden" name="gemini_limits" value="1">
-        </div>
-        <label class="field">ความละเอียดในการคิด <span class="hint">ใช้กับ Claude เท่านั้น</span>
-          <select name="ai_effort">
-            {% for e, l in [('low', 'ต่ำ — เร็วและประหยัด'), ('medium', 'กลาง'), ('high', 'สูง — ละเอียดที่สุด')] %}<option value="{{ e }}" {{ 'selected' if settings.ai_effort == e }}>{{ l }}</option>{% endfor %}
-          </select>
-        </label>
-        <div class="row">
-          <label class="field">รอลูกค้าพิมพ์ (วินาที) <input name="debounce_seconds" type="number" min="0" max="600" class="mono" value="{{ settings.debounce_seconds }}"></label>
-          <label class="field">อ่านย้อนหลัง (ข้อความ) <input name="context_messages" type="number" min="5" max="100" class="mono" value="{{ settings.context_messages }}"></label>
-        </div>
-        <button class="primary block">บันทึกการตั้งค่า</button>
-      </div>
-    </section>
+  </div>
+  <div class="save-bar">
+    <span class="muted small">การตั้งค่าในหน้านี้ (ยกเว้นเสียงแจ้งเตือน) จะมีผลเมื่อกดบันทึก</span>
+    <button class="primary">{{ icon('check', 15) }} บันทึกการตั้งค่า</button>
   </div>
 </form>
 
