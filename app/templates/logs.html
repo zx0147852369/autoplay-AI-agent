@@ -61,7 +61,7 @@
         const t = document.createElement('time'); t.textContent = fmtTime(r.ts);
         const lv = document.createElement('span'); lv.className = 'lv'; lv.textContent = r.level;
         const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = r.name;
-        const msg = document.createElement('span'); msg.className = 'msg'; msg.textContent = r.msg;
+        const msg = document.createElement('span'); msg.className = 'lmsg'; msg.textContent = r.msg;
         line.append(t, lv, nm, msg);
         frag.append(line);
         last = Math.max(last, r.id);

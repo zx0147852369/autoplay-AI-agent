@@ -866,18 +866,18 @@ img.avatar.logo { object-fit: cover; background: #fff; border: 1px solid var(--l
 .logbar { flex-wrap: wrap; gap: 10px 16px; }
 .logtools { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .logview {
-  font-family: var(--mono); font-size: 0.84rem; line-height: 1.55; max-height: 68vh; overflow-y: auto;
-  background: #14160f; color: #d6d8cc; border-radius: var(--r); padding: 10px 12px; margin: 4px 0 2px;
+  font-family: var(--mono); font-size: 0.92rem; line-height: 1.6; max-height: 68vh; overflow-y: auto;
+  background: #14160f; color: #d6d8cc; border-radius: var(--r); padding: 12px 14px; margin: 4px 0 2px;
 }
-.logline { display: grid; grid-template-columns: auto 64px auto 1fr; gap: 10px; padding: 1px 0; white-space: pre-wrap; word-break: break-word; }
-.logline time { color: #8a8f7a; }
+.logline { display: grid; grid-template-columns: auto 72px minmax(120px, auto) 1fr; gap: 12px; padding: 2px 0; white-space: pre-wrap; word-break: break-word; }
+.logline > time { color: #8a8f7a; }
 .logline .lv { font-weight: 600; }
 .logline .nm { color: #7fa7d4; }
-.logline .msg { color: #e4e6da; }
+.logline .lmsg { color: #e4e6da; }
 .lv-INFO .lv { color: #6fcf8e; }
-.lv-WARNING .lv, .lv-WARNING .msg { color: #e6b24a; }
-.lv-ERROR .lv, .lv-ERROR .msg, .lv-CRITICAL .lv, .lv-CRITICAL .msg { color: #f08a7a; }
-.lv-DEBUG .lv, .lv-DEBUG .nm, .lv-DEBUG .msg { color: #8a8f7a; }
+.lv-WARNING .lv, .lv-WARNING .lmsg { color: #e6b24a; }
+.lv-ERROR .lv, .lv-ERROR .lmsg, .lv-CRITICAL .lv, .lv-CRITICAL .lmsg { color: #f08a7a; }
+.lv-DEBUG .lv, .lv-DEBUG .nm, .lv-DEBUG .lmsg { color: #8a8f7a; }
 .lv-CRITICAL .lv { text-decoration: underline; }
 @media (max-width: 760px) { .logline { grid-template-columns: auto auto 1fr; } .logline .nm { display: none; } }
 

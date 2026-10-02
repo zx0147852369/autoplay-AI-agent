@@ -93,11 +93,10 @@ def install(level: int = logging.INFO) -> None:
     root = logging.getLogger()
     root.addHandler(mem)
     root.addHandler(daily)
-    # uvicorn ไม่ส่งต่อไป root -> ติด handler ให้เองเพื่อเก็บ log ตอนเริ่ม/ตอน error (ข้าม access log เพราะจะรก)
+    # uvicorn ส่ง log ขึ้น root อยู่แล้ว -> เปิด propagate ให้ชัวร์ ไม่ต้องติด handler ซ้ำ (กัน log ซ้ำ 2 บรรทัด)
+    # ไม่ยุ่งกับ uvicorn.access เพราะจะทำให้ log ทุก request รก
     for name in ("uvicorn", "uvicorn.error"):
-        lg = logging.getLogger(name)
-        lg.addHandler(mem)
-        lg.addHandler(daily)
+        logging.getLogger(name).propagate = True
 
 
 def records(after: int = 0, level: str = "", limit: int = 500) -> dict:
