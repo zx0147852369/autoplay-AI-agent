@@ -866,14 +866,14 @@ img.avatar.logo { object-fit: cover; background: #fff; border: 1px solid var(--l
 .logbar { flex-wrap: wrap; gap: 10px 16px; }
 .logtools { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .logview {
-  font-family: var(--mono); font-size: 0.92rem; line-height: 1.6; max-height: 68vh; overflow-y: auto;
-  background: #14160f; color: #d6d8cc; border-radius: var(--r); padding: 12px 14px; margin: 4px 0 2px;
+  font-family: inherit; font-size: 0.98rem; line-height: 1.7; max-height: 68vh; overflow-y: auto;
+  background: #14160f; color: #eef0e8; border-radius: var(--r); padding: 14px 16px; margin: 4px 0 2px;
 }
 .logline { display: grid; grid-template-columns: auto 72px minmax(120px, auto) 1fr; gap: 12px; padding: 2px 0; white-space: pre-wrap; word-break: break-word; }
-.logline > time { color: #8a8f7a; }
+.logline > time { color: #9aa08c; font-variant-numeric: tabular-nums; }
 .logline .lv { font-weight: 600; }
 .logline .nm { color: #7fa7d4; }
-.logline .lmsg { color: #e4e6da; }
+.logline .lmsg { color: #f3f4ee; }
 .lv-INFO .lv { color: #6fcf8e; }
 .lv-WARNING .lv, .lv-WARNING .lmsg { color: #e6b24a; }
 .lv-ERROR .lv, .lv-ERROR .lmsg, .lv-CRITICAL .lv, .lv-CRITICAL .lmsg { color: #f08a7a; }
