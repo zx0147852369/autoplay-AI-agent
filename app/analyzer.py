@@ -10,7 +10,7 @@ from difflib import SequenceMatcher
 
 from sqlalchemy import func, select
 
-from . import ai_service, dev_bridge
+from . import ai_service, dev_bridge, line_service
 from .telegram_service import STICKER_TEXT
 from .database import (
     Chat, Guide, GuideQuestion, Message, Reply, SessionLocal, Ticket, TicketAttachment, TicketEvent, get_settings,
@@ -176,7 +176,11 @@ async def analyze(chat_id: int) -> str:
             log.info("ไม่สร้างร่างซ้ำกับที่แอดมินปฏิเสธไปแล้วในแชท %s", chat_id)
             result.needs_reply = False
         if result.needs_reply and result.reply_text.strip() and (settings.get("auto_draft") == "1" or ask_link or ack):
-            _save_draft(chat_id, result, new_messages, ticket_id)
+            draft_id = _save_draft(chat_id, result, new_messages, ticket_id)
+            try:
+                await line_service.notify_reply(draft_id)
+            except Exception:  # noqa: BLE001 - แจ้ง LINE ไม่สำเร็จ ไม่ให้ล้มการวิเคราะห์
+                log.exception("line notify failed for reply %s", draft_id)
         _mark_analyzed(new_messages)
 
         parts = []
@@ -314,7 +318,7 @@ def _mark_analyzed(messages: list[Message]) -> None:
         db.commit()
 
 
-def _save_draft(chat_id: int, result: ai_service.Analysis, new_messages: list[Message], ticket_id) -> None:
+def _save_draft(chat_id: int, result: ai_service.Analysis, new_messages: list[Message], ticket_id) -> int:
     valid_ids = {m.tg_message_id for m in new_messages if not m.is_outgoing}
     reply_to = result.reply_to_message_id if result.reply_to_message_id in valid_ids else None
     if reply_to is None and valid_ids:
@@ -324,7 +328,7 @@ def _save_draft(chat_id: int, result: ai_service.Analysis, new_messages: list[Me
         for old in db.scalars(select(Reply).where(
                 Reply.chat_id == chat_id, Reply.status == "pending", Reply.kind == "ai")):
             old.status = "superseded"
-        db.add(Reply(
+        draft = Reply(
             chat_id=chat_id,
             reply_to_tg_id=reply_to,
             ai_text=result.reply_text.strip(),
@@ -332,8 +336,10 @@ def _save_draft(chat_id: int, result: ai_service.Analysis, new_messages: list[Me
             note=result.note_for_admin,
             ticket_id=ticket_id,
             media=json.dumps(result.media) if result.media else "",
-        ))
+        )
+        db.add(draft)
         db.commit()
+        return draft.id
 
 
 def _host(url: str) -> str:

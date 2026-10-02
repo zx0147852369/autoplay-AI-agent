@@ -19,7 +19,7 @@ from markupsafe import Markup, escape
 from sqlalchemy import func, select
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import ai_service, analyzer, dev_bridge, quota, sysinfo
+from . import ai_service, analyzer, dev_bridge, line_service, quota, sysinfo
 from .config import ADMIN_PASSWORD, ADMIN_USERNAME, DATA_DIR, DISPLAY_TZ, EPHEMERAL_STORAGE, MEDIA_DIR, SECRET_KEY
 from .database import (
     DEFAULT_SETTINGS,
@@ -667,25 +667,20 @@ def _load_pending(reply_id: int) -> Reply | None:
     return reply if reply and reply.status in ("pending", "failed") else None
 
 
-@app.post("/replies/{reply_id}/approve")
-async def replies_approve(request: Request, reply_id: int, text: str = Form(...), media: list[str] = Form([])):
-    user = current_user(request, "agent")
-    if not _load_pending(reply_id):
-        flash(request, "ข้อความนี้ถูกดำเนินการไปแล้ว", "error")
-        return back("/replies")
-    text = text.strip()
+async def deliver_reply(reply_id: int, text: str, by: str, media: list[str] | None = None) -> tuple[str, str]:
+    """ส่งคำตอบที่อนุมัติแล้วถึงลูกค้า (ใช้ร่วมกันทั้งหน้าเว็บและ LINE) คืนค่า (status, ข้อความแจ้งผล)"""
+    text = (text or "").strip()
     if not text:
-        flash(request, "ข้อความว่าง ส่งไม่ได้", "error")
-        return back("/replies")
+        return "failed", "ข้อความว่าง ส่งไม่ได้"
     with SessionLocal() as db:
         reply = db.get(Reply, reply_id)
         allowed = json.loads(reply.media or "[]")
-        photos = [p for p in allowed if p in media]  # เฉพาะรูปที่ยังติ๊กไว้
+        photos = allowed if media is None else [p for p in allowed if p in media]
         reply.status, reply.final_text = "sending", text
         reply.media = json.dumps(photos) if photos else ""
-        reply.decided_by, reply.decided_at = user.username, utcnow()
+        reply.decided_by, reply.decided_at = by, utcnow()
         db.commit()
-        chat_id, reply_to = reply.chat_id, reply.reply_to_tg_id
+        chat_id, reply_to, kind, ticket_id = reply.chat_id, reply.reply_to_tg_id, reply.kind, reply.ticket_id
     try:
         sent_id = await telegram.send_reply(chat_id, text, reply_to)
         status, error = "sent", ""
@@ -696,39 +691,110 @@ async def replies_approve(request: Request, reply_id: int, text: str = Form(...)
             except Exception as e:  # noqa: BLE001 - ข้อความส่งแล้ว แจ้งเฉพาะรูปที่ส่งไม่ได้
                 log.exception("send reply photos failed")
                 error = f"ส่งข้อความแล้ว แต่ส่งรูปไม่สำเร็จ: {e}"
-        if error:
-            flash(request, error, "error")
-        else:
-            flash(request, "อนุมัติและส่งข้อความแล้ว" + (f" พร้อมรูป {len(files)} รูป" if files else ""))
+        msg = error or ("อนุมัติและส่งข้อความแล้ว" + (f" พร้อมรูป {len(files)} รูป" if files else ""))
     except TelegramLoginError as e:
-        status, error = "failed", str(e)
-        flash(request, f"ส่งข้อความไม่สำเร็จ: {e}", "error")
+        status, error, msg = "failed", str(e), f"ส่งข้อความไม่สำเร็จ: {e}"
     except Exception as e:  # noqa: BLE001
         log.exception("send reply failed")
-        status, error = "failed", str(e)
-        flash(request, f"ส่งข้อความไม่สำเร็จ: {e}", "error")
+        status, error, msg = "failed", str(e), f"ส่งข้อความไม่สำเร็จ: {e}"
     with SessionLocal() as db:
         reply = db.get(Reply, reply_id)
         reply.status, reply.error = status, error
-        if status == "sent" and reply.ticket_id and db.get(Ticket, reply.ticket_id):
-            label = "แจ้งลูกค้าว่าแก้ไขเรียบร้อยแล้ว" if reply.kind == "resolved" else "ตอบลูกค้า"
-            db.add(TicketEvent(ticket_id=reply.ticket_id, kind="status", author=user.username,
-                               body=f"{label}: {text}"))
+        if status == "sent" and ticket_id and db.get(Ticket, ticket_id):
+            label = "แจ้งลูกค้าว่าแก้ไขเรียบร้อยแล้ว" if kind == "resolved" else "ตอบลูกค้า"
+            db.add(TicketEvent(ticket_id=ticket_id, kind="status", author=by, body=f"{label}: {text}"))
         db.commit()
+    return status, msg
+
+
+def reject_reply(reply_id: int, reason: str, by: str) -> bool:
+    with SessionLocal() as db:
+        reply = db.get(Reply, reply_id)
+        if reply and reply.status in ("pending", "failed"):
+            reply.status, reply.reject_reason = "rejected", (reason or "").strip()
+            reply.decided_by, reply.decided_at = by, utcnow()
+            db.commit()
+            return True
+    return False
+
+
+@app.post("/replies/{reply_id}/approve")
+async def replies_approve(request: Request, reply_id: int, text: str = Form(...), media: list[str] = Form([])):
+    user = current_user(request, "agent")
+    if not _load_pending(reply_id):
+        flash(request, "ข้อความนี้ถูกดำเนินการไปแล้ว", "error")
+        return back("/replies")
+    status, msg = await deliver_reply(reply_id, text, user.username, media=media)
+    flash(request, msg, "ok" if status == "sent" else "error")
     return back("/replies")
 
 
 @app.post("/replies/{reply_id}/reject")
 async def replies_reject(request: Request, reply_id: int, reason: str = Form("")):
     user = current_user(request, "agent")
-    with SessionLocal() as db:
-        reply = db.get(Reply, reply_id)
-        if reply and reply.status in ("pending", "failed"):
-            reply.status, reply.reject_reason = "rejected", reason.strip()
-            reply.decided_by, reply.decided_at = user.username, utcnow()
-            db.commit()
-            flash(request, "ปฏิเสธการส่งข้อความแล้ว (ไม่ได้ส่งถึงลูกค้า)")
+    if reject_reply(reply_id, reason, user.username):
+        flash(request, "ปฏิเสธการส่งข้อความแล้ว (ไม่ได้ส่งถึงลูกค้า)")
     return back("/replies")
+
+
+# ---------------------------------------------------------------- LINE webhook (กดอนุมัติจาก LINE)
+@app.post("/line/webhook")
+async def line_webhook(request: Request):
+    body = await request.body()
+    if not line_service.verify(body, request.headers.get("x-line-signature", "")):
+        return JSONResponse({"error": "bad signature"}, status_code=403)
+    try:
+        events = json.loads(body).get("events", [])
+    except json.JSONDecodeError:
+        events = []
+    with SessionLocal() as db:
+        settings = get_settings(db)
+    target = settings.get("line_target", "")
+    allow_approve = settings.get("line_approve", "1") == "1"
+    for ev in events:
+        src = line_service.source_id(ev.get("source", {}))
+        rtoken = ev.get("replyToken", "")
+        etype = ev.get("type")
+        if etype in ("follow", "join", "message") and src:
+            if src != target:  # จับปลายทางอัตโนมัติ (คนแรกที่ทัก/เพิ่ม OA)
+                with SessionLocal() as db:
+                    db.merge(Setting(key="line_target", value=src))
+                    db.merge(Setting(key="line_enabled", value="1"))
+                    db.commit()
+                target = src
+                if rtoken:
+                    await line_service.reply(rtoken, line_service.text_message(
+                        "เชื่อมต่อ LINE สำหรับแจ้งเตือนรออนุมัติเรียบร้อยแล้วค่ะ ✅ เมื่อมีข้อความรออนุมัติจะส่งมาที่นี่"))
+            elif etype == "message" and rtoken:
+                await line_service.reply(rtoken, line_service.text_message("ระบบแจ้งเตือนรออนุมัติพร้อมใช้งานแล้วค่ะ ✅"))
+        elif etype == "postback" and src:
+            data = ev.get("postback", {}).get("data", "")
+            action, _, rid = data.partition(":")
+            if target and src != target:
+                continue  # รับคำสั่งเฉพาะจากปลายทางที่เชื่อมไว้
+            if not rid.isdigit():
+                continue
+            rid = int(rid)
+            if not allow_approve:
+                if rtoken:
+                    await line_service.reply(rtoken, line_service.text_message("ปิดการอนุมัติจาก LINE ไว้ · อนุมัติได้ที่หน้าเว็บ"))
+                continue
+            pending = _load_pending(rid)
+            if not pending:
+                if rtoken:
+                    await line_service.reply(rtoken, line_service.text_message("รายการนี้ถูกดำเนินการไปแล้ว"))
+                continue
+            if action == "approve":
+                status, _ = await deliver_reply(rid, pending.final_text, f"LINE:{src[-4:]}")
+                out = "ส่งข้อความถึงลูกค้าแล้ว ✅" if status == "sent" else "ส่งไม่สำเร็จ ลองที่หน้าเว็บอีกครั้ง"
+            elif action == "reject":
+                reject_reply(rid, "ปฏิเสธจาก LINE", f"LINE:{src[-4:]}")
+                out = "ไม่ส่งข้อความนี้แล้ว ❌"
+            else:
+                out = ""
+            if out and rtoken:
+                await line_service.reply(rtoken, line_service.text_message(out))
+    return JSONResponse({"ok": True})
 
 
 @app.post("/replies/{reply_id}/regenerate")
@@ -1215,7 +1281,10 @@ async def settings_page(request: Request):
                   has_gemini_key=bool(quota.gemini_keys()),
                   gemini_keys=[(quota.slot_label(i), quota.mask_key(k), k in ai_service._bad_keys)
                                for i, k in enumerate(quota.gemini_keys(), 1)],
-                  has_claude_key=bool(os.getenv("ANTHROPIC_API_KEY")))
+                  has_claude_key=bool(os.getenv("ANTHROPIC_API_KEY")),
+                  line_configured=line_service.configured(), line_has_token=bool(line_service.token()),
+                  line_has_secret=bool(line_service.secret()), line_target=settings.get("line_target", ""),
+                  line_webhook=str(request.base_url).rstrip("/") + "/line/webhook")
 
 
 @app.post("/settings")
@@ -1225,7 +1294,7 @@ async def settings_save(request: Request):
     with SessionLocal() as db:
         for key in DEFAULT_SETTINGS:
             if key in ("auto_draft", "auto_ticket", "site_check", "ask_link", "ack_info", "notify_resolved", "dev_forward",
-                       "dev_require_approval", "dev_watch", "ignore_bots"):
+                       "dev_require_approval", "dev_watch", "ignore_bots", "line_enabled", "line_approve"):
                 value = "1" if form.get(key) else "0"
             elif key == "gemini_limits":
                 limits = {}

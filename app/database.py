@@ -288,6 +288,9 @@ DEFAULT_SETTINGS = {
     "dev_forward": "1",
     "dev_require_approval": "1",  # ต้องอนุมัติก่อนส่ง ticket เข้ากลุ่มโปรแกรมเมอร์
     "dev_watch": "1",
+    "line_enabled": "0",   # ส่งการ์ดรออนุมัติเข้า LINE
+    "line_target": "",     # ปลายทาง LINE (จับอัตโนมัติเมื่อมีคนทัก/เพิ่ม OA)
+    "line_approve": "1",   # อนุญาตให้กดอนุมัติจากปุ่มใน LINE
 }
 
 
